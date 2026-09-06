@@ -1,0 +1,23 @@
+{
+  "name": "productivity-ecosystem",
+  "private": true,
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "cd server && npm run build && cd ../web && npm run build",
+    "db:push": "cd server && npx drizzle-kit push",
+    "db:studio": "cd server && npx drizzle-kit studio"
+  },
+  "devDependencies": {
+    "clsx": "^2.1.1",
+    "concurrently": "^9.1.0",
+    "dnd-kit": "^0.0.2",
+    "lucide-react": "^1.41.0",
+    "tailwind-merge": "^3.6.0"
+  }
+}

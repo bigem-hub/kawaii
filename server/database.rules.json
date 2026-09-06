@@ -1,0 +1,80 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "_migration": {
+      ".read": false,
+      ".write": false
+    },
+
+    "users": {
+      ".indexOn": ["email", "username"],
+      "$uid": {
+        ".read": false,
+        ".write": false
+      }
+    },
+
+    "categories": {
+      ".indexOn": ["userId"]
+    },
+    "tasks": {
+      ".indexOn": ["userId"]
+    },
+    "notes": {
+      ".indexOn": ["userId"]
+    },
+    "noteShares": {
+      ".indexOn": ["userId", "noteId"]
+    },
+    "friendRequests": {
+      ".indexOn": ["toUserId", "fromUserId"]
+    },
+    "socialLinks": {
+      ".indexOn": ["userId"]
+    },
+    "conversationMembers": {
+      ".indexOn": ["userId", "conversationId"]
+    },
+    "messages": {
+      ".indexOn": ["conversationId"]
+    },
+    "fitnessEntries": {
+      ".indexOn": ["userId"]
+    },
+    "cardioEntries": {
+      ".indexOn": ["userId"]
+    },
+    "workoutRoutines": {
+      ".indexOn": ["userId"]
+    },
+    "workoutSessions": {
+      ".indexOn": ["userId"]
+    },
+    "events": {
+      ".indexOn": ["userId"]
+    },
+    "reminders": {
+      ".indexOn": ["userId"]
+    },
+    "notifications": {
+      ".indexOn": ["userId"]
+    },
+    "watchRooms": {
+      ".indexOn": ["active", "code"]
+    },
+    "watchRoomMembers": {
+      ".indexOn": ["userId", "roomId"]
+    },
+    "watchMessages": {
+      ".indexOn": ["roomId"]
+    },
+    "achievements": {
+      ".indexOn": ["code"]
+    },
+    "userAchievements": {
+      ".indexOn": ["userId"]
+    }
+  }
+}

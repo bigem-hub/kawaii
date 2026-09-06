@@ -1,0 +1,39 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Firebase service account (NEVER commit) ---
+*.firebase-sa.json
+firebase-service-account*.json
+service-account*.json
+
+# --- Database ---
+**/data.db
+**/data.db.bak
+**/*.sqlite
+**/*.sqlite3
+
+# --- Apps / tooling ---
+node_modules/
+dist/
+uploads/
+.DS_Store
+Thumbs.db
+
+# --- Android build artifacts ---
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# --- IDE / editor state ---
+.idea/
+.vscode/
+.claude/
+*.iml
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db
