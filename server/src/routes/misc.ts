@@ -8,9 +8,8 @@ import {
 import { authMiddleware } from "../auth/middleware.js";
 
 const router = Router();
-router.use(authMiddleware);
 
-// TEMP DIAGNOSTIC — remove after debugging
+// TEMP DIAGNOSTIC — remove after debugging (before auth middleware)
 router.get("/diag", async (_req: Request, res: Response) => {
   try {
     const hasSa = !!process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -39,6 +38,8 @@ router.get("/diag", async (_req: Request, res: Response) => {
     res.status(500).json({ diagError: e.message || String(e) });
   }
 });
+
+router.use(authMiddleware);
 
 // GET /api/users/:username - public profile
 router.get("/users/:username", async (req: Request, res: Response) => {
