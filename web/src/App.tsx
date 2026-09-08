@@ -22,6 +22,9 @@ import Analytics from "@/pages/Analytics";
 import Profile from "@/pages/Profile";
 import SettingsPage from "@/pages/Settings";
 import Search from "@/pages/Search";
+import Study from "@/pages/Study";
+import Finance from "@/pages/Finance";
+import Schedule from "@/pages/Schedule";
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, initialized } = useAuth();
@@ -90,11 +93,14 @@ export default function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="study" element={<Study />} />
         <Route path="tasks" element={<Tasks />} />
         <Route path="notes" element={<Notes />} />
         <Route path="notes/:id" element={<NoteEditor />} />
         <Route path="chat" element={<Chat />} />
         <Route path="chat/:id" element={<Chat />} />
+        <Route path="finance" element={<Finance />} />
+        <Route path="schedule" element={<Schedule />} />
         <Route path="friends" element={<Friends />} />
         <Route path="friends/:username" element={<Profile />} />
         <Route path="fitness" element={<Fitness />} />

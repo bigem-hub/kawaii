@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/store/useAuth";
 import { Avatar, StatCard, ProgressBar, Skeleton } from "@/components/ui";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import { Edit3, Trophy, Flame, Star, Calendar, CheckCircle, TrendingUp, Medal } from "lucide-react";
+import { Edit3, Trophy, Flame, Medal, Camera } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Profile() {
@@ -14,6 +14,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [bio, setBio] = useState(user?.bio || "");
+  const avatarInput = useRef<HTMLInputElement>(null);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["myProfile"],
@@ -30,6 +31,7 @@ export default function Profile() {
     mutationFn: (data: any) => api.patch("/auth/profile", data),
     onSuccess: (updated: any) => {
       updateProfile(updated);
+      queryClient.setQueryData(["myProfile"], (current: any) => current ? { ...current, ...updated } : current);
       queryClient.invalidateQueries({ queryKey: ["myProfile"] });
       toast.success("Profile updated! ✨");
       setIsEditing(false);
@@ -37,13 +39,26 @@ export default function Profile() {
   });
 
   const p = profile as any;
+  const saveAvatar = (file: File) => {
+    if (!file.type.startsWith("image/") || file.size > 2_000_000) {
+      toast.error("Choose an image smaller than 2 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updateMutation.mutate({ avatar: reader.result });
+    reader.readAsDataURL(file);
+  };
 
   return (
     <motion.div className="max-w-2xl mx-auto space-y-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Profile Header */}
       <div className="card p-6 text-center relative">
-        <div className="flex justify-center">
+        <div className="flex justify-center relative">
           <Avatar name={user?.displayName || "?"} avatar={user?.avatar} size={96} />
+          <button className="absolute bottom-0 ml-20 rounded-full bg-[var(--accent)] text-white p-2" onClick={() => avatarInput.current?.click()} aria-label="Change profile picture">
+            <Camera size={15} />
+          </button>
+          <input ref={avatarInput} hidden type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && saveAvatar(e.target.files[0])} />
         </div>
         {isEditing ? (
           <div className="mt-4 space-y-3 max-w-sm mx-auto">
@@ -116,10 +131,11 @@ export default function Profile() {
           <h3 className="font-bold flex items-center gap-2 mb-3"><Medal size={18} className="text-yellow-500" /> Achievements</h3>
           <div className="grid grid-cols-3 gap-3">
             {(achievements as any[]).map((a: any) => (
-              <div key={a.id || a.code} className="text-center p-3 rounded-xl bg-[var(--surface-2)]">
+                <div key={a.id || a.code} className={`text-center p-3 rounded-xl bg-[var(--surface-2)] ${a.earned ? "" : "opacity-45 grayscale"}`}>
                 <div className="text-2xl mb-1">{a.icon || "🏅"}</div>
                 <div className="text-xs font-semibold">{a.name}</div>
                 <div className="text-[10px] text-[var(--text-muted)]">{a.description}</div>
+                  {a.progress && <div className="text-[10px] mt-1">{Math.min(a.progress.current, a.progress.target)}/{a.progress.target}</div>}
               </div>
             ))}
           </div>

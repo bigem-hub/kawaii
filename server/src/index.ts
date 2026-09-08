@@ -17,11 +17,15 @@ import fitnessRouter from "./routes/fitness.js";
 import calendarRouter from "./routes/calendar.js";
 import watchRouter from "./routes/watch.js";
 import notificationsRouter from "./routes/notifications.js";
+import financeRouter from "./routes/finance.js";
+import studyRouter from "./routes/study.js";
+import scheduleRouter from "./routes/schedule.js";
 import miscRouter from "./routes/misc.js";
 
 // Initialize
 const app = express();
 const server = createServer(app);
+app.set("trust proxy", 1);
 
 // Security
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -55,12 +59,16 @@ app.use("/api/fitness", fitnessRouter);
 app.use("/api/calendar", calendarRouter);
 app.use("/api/watch", watchRouter);
 app.use("/api/notifications", notificationsRouter);
-app.use("/api", miscRouter);
+app.use("/api/finance", financeRouter);
+app.use("/api/study", studyRouter);
+app.use("/api/schedule", scheduleRouter);
 
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
+
+app.use("/api", miscRouter);
 
 // 404
 app.use((_req, res) => {

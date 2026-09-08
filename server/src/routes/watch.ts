@@ -44,15 +44,11 @@ async function resolveRoom(param: string): Promise<{ id: string; room: any } | n
 router.get("/rooms", async (req: Request, res: Response) => {
   try {
     const all = await findMany("watchRooms", "active", true);
-    res.json(
-      all
-        .map((r) => ({
-          ...r,
-          active: r.active ?? true,
-          privacy: r.privacy ?? "private",
-        }))
-        .filter((r) => r.privacy === "public")
-    );
+    const rooms = await Promise.all(all.map(async (r) => {
+      const members = await findMany("watchRoomMembers", "roomId", r.id);
+      return { ...r, active: r.active ?? true, privacy: r.privacy ?? "private", memberCount: members.length };
+    }));
+    res.json(rooms.filter((r) => r.privacy === "public"));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed" });
@@ -71,7 +67,9 @@ router.get("/my-rooms", async (req: Request, res: Response) => {
       await Promise.all(
         memberships.map(async (m: any) => {
           const roomSnap = await getAt(`watchRooms/${m.roomId}`);
-          return roomSnap ? { id: m.roomId, ...roomSnap } : null;
+          if (!roomSnap) return null;
+          const roomMembers = await findMany("watchRoomMembers", "roomId", m.roomId);
+          return { id: m.roomId, ...roomSnap, memberCount: roomMembers.length };
         })
       )
     ).filter(Boolean);
@@ -181,7 +179,7 @@ router.get("/rooms/:id", async (req: Request, res: Response) => {
 
     const messages = await findMany("watchMessages", "roomId", roomId);
 
-    res.json({ ...room, members: enrichedMembers, messages });
+    res.json({ ...room, members: enrichedMembers, memberCount: enrichedMembers.length, messages });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed" });
@@ -194,6 +192,11 @@ router.patch("/rooms/:id/media", async (req: Request, res: Response) => {
     const resolved = await resolveRoom(String(req.params.id));
     if (!resolved) { res.status(404).json({ error: "Room not found" }); return; }
     const { id: roomId } = resolved;
+    const existingRoom = await getById("watchRooms", roomId);
+    if (!existingRoom || existingRoom.hostId !== req.user!.id) {
+      res.status(403).json({ error: "Only the host can control playback" });
+      return;
+    }
     const { mediaUrl, isPlaying, currentTime } = req.body;
     const parsed = parseMediaUrl(mediaUrl);
 
@@ -215,7 +218,7 @@ router.patch("/rooms/:id/media", async (req: Request, res: Response) => {
 
     const room = await getById("watchRooms", roomId);
     if (room) {
-      getIO().to(`watch:${roomId}`).emit("media:update", {
+      getIO().to(`watch:${roomId}`).emit("watch:mediaChange", {
         mediaUrl: room.mediaUrl,
         mediaProvider: room.mediaProvider,
         mediaId: room.mediaId,

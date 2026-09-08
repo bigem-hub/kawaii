@@ -252,7 +252,7 @@ router.post("/:convId/messages", async (req: Request, res: Response) => {
   try {
     const convId = String(req.params.convId);
     const userId = req.user!.id;
-    const { content, type, replyTo, fileUrl, fileName, fileType } = req.body;
+    const { content, type, replyTo, fileUrl, fileName, fileType, studyRoomId, studyRoomName } = req.body;
 
     // Verify membership
     const memberSnap = await getAt(
@@ -265,20 +265,24 @@ router.post("/:convId/messages", async (req: Request, res: Response) => {
 
     const id = uuid();
     const now = Date.now();
+    const messageType = type || (studyRoomId ? "study_invite" : "text");
+    
     await setRow("messages", id, {
       conversationId: convId,
       senderId: userId,
-      type: type || "text",
+      type: messageType,
       content: content || "",
       replyTo: replyTo || null,
       fileUrl: fileUrl || null,
       fileName: fileName || null,
       fileType: fileType || null,
+      studyRoomId: studyRoomId || null,
+      studyRoomName: studyRoomName || null,
       createdAt: now,
       updatedAt: now,
     });
 
-    const msg = hydrate("messages", { id, conversationId: convId, senderId: userId, type: type || "text", content: content || "", replyTo: replyTo || null, fileUrl: fileUrl || null, fileName: fileName || null, fileType: fileType || null, createdAt: now, updatedAt: now });
+    const msg = hydrate("messages", { id, conversationId: convId, senderId: userId, type: messageType, content: content || "", replyTo: replyTo || null, fileUrl: fileUrl || null, fileName: fileName || null, fileType: fileType || null, studyRoomId: studyRoomId || null, studyRoomName: studyRoomName || null, createdAt: now, updatedAt: now });
     const sender = await getById("users", userId);
 
     const payload = {

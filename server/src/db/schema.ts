@@ -450,6 +450,42 @@ export const workoutSets = sqliteTable("workout_sets", {
 });
 
 // ============================================================
+// FINANCE
+// ============================================================
+export const financeTransactions = sqliteTable(
+  "finance_transactions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: real("amount").notNull(),
+    title: text("title").notNull(),
+    description: text("description").default(""),
+    category: text("category").default("other"),
+    type: text("type").notNull(), // income | expense
+    date: text("date").notNull(), // YYYY-MM-DD
+    notes: text("notes").default(""),
+    createdAt: integer("created_at").notNull().default(now()),
+  },
+  (t) => ({
+    userIdx: index("finance_user_idx").on(t.userId, t.date),
+  })
+);
+
+export const financeCategories = sqliteTable("finance_categories", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // income | expense
+  color: text("color").default("#FF8FAB"),
+  icon: text("icon").default("Wallet"), // lucide icon name
+  sortOrder: integer("sort_order").default(0),
+});
+
+// ============================================================
 // CALENDAR / EVENTS / REMINDERS
 // ============================================================
 export const events = sqliteTable(
@@ -560,6 +596,116 @@ export const watchMessages = sqliteTable("watch_messages", {
 });
 
 // ============================================================
+// SCHEDULE
+// ============================================================
+export const subjects = sqliteTable(
+  "subjects",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    shortName: text("short_name"),
+    teacher: text("teacher"),
+    room: text("room"),
+    color: text("color").default("#FF8FAB"),
+    icon: text("icon").default("BookOpen"),
+    createdAt: integer("created_at").notNull().default(now()),
+  },
+  (t) => ({
+    userIdx: index("subjects_user_idx").on(t.userId),
+  })
+);
+
+export const scheduleClasses = sqliteTable(
+  "schedule_classes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    teacher: text("teacher"),
+    room: text("room"),
+    day: integer("day").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+    startTime: text("start_time").notNull(), // HH:MM format
+    endTime: text("end_time").notNull(), // HH:MM format
+    notes: text("notes").default(""),
+    color: text("color").default("#FF8FAB"),
+    isActive: integer("is_active", { mode: "boolean" }).default(true),
+    createdAt: integer("created_at").notNull().default(now()),
+    updatedAt: integer("updated_at").notNull().default(now()),
+  },
+  (t) => ({
+    userIdx: index("schedule_classes_user_idx").on(t.userId),
+    dayIdx: index("schedule_classes_day_idx").on(t.userId, t.day),
+  })
+);
+
+export const scheduleHomework = sqliteTable(
+  "schedule_homework",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    description: text("description").default(""),
+    dueDate: text("due_date").notNull(), // YYYY-MM-DD
+    dueTime: text("due_time"), // HH:MM format
+    priority: text("priority").default("medium"), // low | medium | high | urgent
+    status: text("status").default("not_started"), // not_started | in_progress | completed
+    completedAt: integer("completed_at"),
+    estimatedMinutes: integer("estimated_minutes").default(0),
+    notes: text("notes").default(""),
+    createdAt: integer("created_at").notNull().default(now()),
+    updatedAt: integer("updated_at").notNull().default(now()),
+  },
+  (t) => ({
+    userIdx: index("schedule_homework_user_idx").on(t.userId),
+    dueIdx: index("schedule_homework_due_idx").on(t.userId, t.dueDate),
+    statusIdx: index("schedule_homework_status_idx").on(t.userId, t.status),
+  })
+);
+
+export const scheduleStudySessions = sqliteTable(
+  "schedule_study_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subjectId: text("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    topic: text("topic").default(""),
+    date: text("date").notNull(), // YYYY-MM-DD
+    startTime: text("start_time").notNull(), // HH:MM format
+    endTime: text("end_time").notNull(), // HH:MM format
+    durationMinutes: integer("duration_minutes").default(0),
+    priority: text("priority").default("medium"), // low | medium | high | urgent
+    status: text("status").default("planned"), // planned | in_progress | completed | skipped
+    completedAt: integer("completed_at"),
+    notes: text("notes").default(""),
+    createdAt: integer("created_at").notNull().default(now()),
+    updatedAt: integer("updated_at").notNull().default(now()),
+  },
+  (t) => ({
+    userIdx: index("schedule_study_sessions_user_idx").on(t.userId),
+    dateIdx: index("schedule_study_sessions_date_idx").on(t.userId, t.date),
+    statusIdx: index("schedule_study_sessions_status_idx").on(t.userId, t.status),
+  })
+);
+
+// ============================================================
 // GAMIFICATION
 // ============================================================
 export const achievements = sqliteTable("achievements", {
@@ -594,3 +740,7 @@ export type NewUser = typeof users.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type Subject = typeof subjects.$inferSelect;
+export type ScheduleClass = typeof scheduleClasses.$inferSelect;
+export type ScheduleHomework = typeof scheduleHomework.$inferSelect;
+export type ScheduleStudySession = typeof scheduleStudySessions.$inferSelect;

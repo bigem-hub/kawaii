@@ -35,6 +35,7 @@ interface AuthState {
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -106,5 +107,14 @@ export const useAuth = create<AuthState>((set, get) => ({
     await api.patch("/auth/profile", data);
     const current = get().user;
     set({ user: { ...current, ...data } as User });
+  },
+
+  refreshUser: async () => {
+    try {
+      const data = await api.get<{ user: User }>("/auth/me");
+      set({ user: data.user });
+    } catch (err) {
+      console.error("Failed to refresh user:", err);
+    }
   },
 }));

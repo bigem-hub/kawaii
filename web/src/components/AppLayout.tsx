@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui";
 import {
   Home,
   CheckSquare,
+  GraduationCap,
   BookOpen,
   MessageCircle,
   Users,
@@ -18,6 +19,9 @@ import {
   X,
   Bell,
   CheckCheck,
+  Sparkles,
+  Wallet,
+  CalendarDays,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,9 +31,12 @@ import { format } from "date-fns";
 const navItems = [
   { to: "/dashboard", icon: Home, label: "Home" },
   { to: "/tasks", icon: CheckSquare, label: "Tasks" },
+  { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+  { to: "/study", icon: GraduationCap, label: "Study" },
   { to: "/notes", icon: BookOpen, label: "Notes" },
   { to: "/chat", icon: MessageCircle, label: "Chat" },
   { to: "/friends", icon: Users, label: "Friends" },
+  { to: "/finance", icon: Wallet, label: "Finance" },
   { to: "/fitness", icon: Dumbbell, label: "Fitness" },
   { to: "/calendar", icon: Calendar, label: "Calendar" },
   { to: "/watch", icon: Tv, label: "Watch" },
@@ -39,6 +46,8 @@ const navItems = [
 const bottomNav = [
   { to: "/dashboard", icon: Home, label: "Home" },
   { to: "/tasks", icon: CheckSquare, label: "Tasks" },
+  { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+  { to: "/study", icon: GraduationCap, label: "Study" },
   { to: "/chat", icon: MessageCircle, label: "Chat" },
   { to: "/fitness", icon: Dumbbell, label: "Fit" },
   { to: "/friends", icon: Users, label: "Friends" },
@@ -89,7 +98,7 @@ export function AppLayout() {
       <aside className="hidden lg:flex flex-col w-64 h-screen sticky top-0 border-r border-[var(--border)] bg-[var(--surface)]">
         <div className="p-5 border-b border-[var(--border)]">
           <div className="flex items-center gap-3">
-            <div className="text-3xl">🌸</div>
+            <div className="text-[var(--accent)]"><Sparkles size={28} /></div>
             <div>
               <h1 className="font-bold text-lg leading-tight gradient-text">KawaiiLife</h1>
               <div className="text-[10px] text-[var(--text-muted)]">Productivity & Social</div>
@@ -111,13 +120,18 @@ export function AppLayout() {
             Sign Out
           </button>
         </div>
-        {/* User card */}
+{/* User card */}
         <div className="p-4 border-t border-[var(--border)]">
           <div className="flex items-center gap-3">
             <Avatar name={user?.displayName} avatar={user?.avatar} size={36} online={true} />
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-sm truncate">{user?.displayName}</div>
-              <div className="text-[10px] text-[var(--text-muted)]">Lv.{user?.level || 1} · {user?.xp || 0} XP</div>
+              <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-2">
+                <span>Lv.{user?.level || 1} &middot; {user?.xp || 0} XP</span>
+                <div className="flex-1 h-1.5 rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div className="h-full bg-[var(--accent)] transition-all duration-300" style={{ width: `${((user?.xp || 0) % 100)}%` }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -130,7 +144,7 @@ export function AppLayout() {
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-xl">🌸</span>
+            <span className="text-[var(--accent)]"><Sparkles size={24} /></span>
             <span className="font-bold gradient-text">KawaiiLife</span>
           </div>
           <div className="flex items-center gap-1">
@@ -182,7 +196,7 @@ export function AppLayout() {
             >
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">🌸</span>
+                  <span className="text-[var(--accent)]"><Sparkles size={26} /></span>
                   <span className="font-bold gradient-text text-lg">KawaiiLife</span>
                 </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1">
@@ -220,11 +234,16 @@ export function AppLayout() {
                   Sign Out
                 </button>
               </nav>
-              <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center gap-3">
+<div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center gap-3">
                 <Avatar name={user?.displayName} avatar={user?.avatar} size={40} online={true} />
-                <div>
-                  <div className="font-semibold text-sm">{user?.displayName}</div>
-                  <div className="text-[10px] text-[var(--text-muted)]">@{user?.username} · Lv.{user?.level || 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm truncate">{user?.displayName}</div>
+                  <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-2">
+                    <span>@{user?.username} &middot; Lv.{user?.level || 1}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-[var(--surface-2)] overflow-hidden">
+                      <div className="h-full bg-[var(--accent)] transition-all duration-300" style={{ width: `${((user?.xp || 0) % 100)}%` }} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -322,7 +341,7 @@ function NotifDropdown({
           transition={{ duration: 0.15 }}
         >
           <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
-            <span className="font-bold text-sm">Notifications 🔔</span>
+            <span className="font-bold text-sm flex items-center gap-2"><Bell size={16} /> Notifications</span>
             <button
               className="text-xs text-[var(--accent)] font-semibold flex items-center gap-1 hover:underline"
               onClick={onMarkAll}
@@ -333,7 +352,7 @@ function NotifDropdown({
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="text-center py-10 text-[var(--text-muted)] text-sm">
-                <div className="text-3xl mb-2">🎉</div>
+                <div className="mb-2 text-[var(--accent)] flex justify-center"><CheckCheck size={32} /></div>
                 All caught up!
               </div>
             ) : (
@@ -344,12 +363,12 @@ function NotifDropdown({
                     !n.read ? "bg-[var(--accent-soft)]" : ""
                   }`}
                 >
-                  <span className="text-lg mt-0.5">
-                    {n.type === "message" ? "💬" :
-                     n.type === "friend" ? "👥" :
-                     n.type === "task" ? "✅" :
-                     n.type === "note" ? "📝" :
-                     n.type === "reminder" ? "🔔" : "✨"}
+                  <span className="mt-0.5 text-[var(--accent)]">
+                    {n.type === "message" ? <MessageCircle size={18} /> :
+                     n.type === "friend" ? <Users size={18} /> :
+                     n.type === "task" ? <CheckSquare size={18} /> :
+                     n.type === "note" ? <BookOpen size={18} /> :
+                     n.type === "reminder" ? <Bell size={18} /> : <Sparkles size={18} />}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm leading-tight">{n.title}</div>

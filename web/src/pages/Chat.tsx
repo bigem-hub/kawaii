@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuth } from "@/store/useAuth";
 import { Avatar, EmptyState, Skeleton } from "@/components/ui";
-import { Send, Plus, Users, Search } from "lucide-react";
+import { Send, Plus, Users, Search, MessageSquare, Link2, X } from "lucide-react";
 import { format } from "date-fns";
 
 interface Message {
@@ -16,6 +16,8 @@ interface Message {
   type: string;
   createdAt: number;
   reactions: any[];
+  studyRoomId?: string;
+  studyRoomName?: string;
 }
 
 interface Conversation {
@@ -38,23 +40,26 @@ export default function Chat() {
   });
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] lg:h-[calc(100vh-3rem)] card overflow-hidden">
+    <div className="flex h-full min-h-0 card overflow-hidden">
       {/* Conversation list */}
       <div className={`${activeConvId ? "hidden md:flex" : "flex"} flex-col w-full md:w-80 border-r border-[var(--border)]`}>
-        <div className="p-3 border-b border-[var(--border)]">
-          <h2 className="font-bold px-1 mb-2">Messages 💬</h2>
+        <div className="p-3 border-b border-[var(--border)] flex-shrink-0">
+          <h2 className="font-bold px-1 mb-2 flex items-center gap-2">
+            <MessageSquare size={18} className="text-[var(--accent)]" />
+            Messages
+          </h2>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input className="input pl-9 text-sm" placeholder="Search chats..." />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {isLoading ? (
             <div className="p-3 space-y-2">
               {[1,2,3].map(i => <Skeleton key={i} className="h-16" />)}
             </div>
           ) : !conversations?.length ? (
-            <EmptyState icon="💬" title="No conversations yet" message="Start chatting with friends!" />
+            <EmptyState icon={<MessageSquare size={32} className="mx-auto text-[var(--accent)] opacity-30" />} title="No conversations yet" message="Start chatting with friends!" />
           ) : (
             conversations.map((conv) => (
               <button
@@ -102,7 +107,7 @@ export default function Chat() {
         <ChatArea convId={activeConvId} />
       ) : (
         <div className="hidden md:flex flex-1 items-center justify-center">
-          <EmptyState icon="💌" title="Select a conversation" message="Choose from your chats or start a new one" />
+          <EmptyState icon={<MessageSquare size={32} className="mx-auto text-[var(--accent)] opacity-30" />} title="Select a conversation" message="Choose from your chats or start a new one" />
         </div>
       )}
     </div>
@@ -122,8 +127,13 @@ function ChatArea({ convId }: { convId: string }) {
     queryFn: () => api.get(`/chat/${convId}/messages`),
   });
 
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteRoomId, setInviteRoomId] = useState("");
+  const [inviteRoomName, setInviteRoomName] = useState("");
+
   const sendMutation = useMutation({
-    mutationFn: (content: string) => api.post(`/chat/${convId}/messages`, { content }),
+    mutationFn: (data: { content: string; studyRoomId?: string; studyRoomName?: string }) => 
+      api.post(`/chat/${convId}/messages`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", convId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -171,8 +181,15 @@ function ChatArea({ convId }: { convId: string }) {
 
   const handleSend = () => {
     if (!message.trim()) return;
-    sendMutation.mutate(message);
+    sendMutation.mutate({ 
+      content: message,
+      studyRoomId: inviteRoomId || undefined,
+      studyRoomName: inviteRoomName || undefined,
+    });
     setMessage("");
+    setShowInviteModal(false);
+    setInviteRoomId("");
+    setInviteRoomName("");
   };
 
   const socket = getSocket();
@@ -184,6 +201,41 @@ function ChatArea({ convId }: { convId: string }) {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {allMessages.map((msg) => {
           const isMine = msg.senderId === user?.id;
+          
+          // Render study room invite message
+          if (msg.type === "study_invite" && msg.studyRoomId) {
+            return (
+              <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[75%] ${isMine ? "order-1" : ""}`}>
+                  {!isMine && msg.sender && (
+                    <div className="text-xs font-semibold text-[var(--text-muted)] mb-1 px-1">
+                      {msg.sender.displayName}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      // Navigate to study page and join room
+                      window.location.href = `/study?join=${msg.studyRoomId}`;
+                    }}
+                    className={`px-4 py-3 rounded-2xl text-sm border border-[var(--border)] flex items-center gap-3 w-full ${isMine ? "bg-[var(--accent-soft)]" : "bg-[var(--surface-2)]"} text-left transition-colors hover:shadow-md`}
+                  >
+                    <div className="p-2 rounded-xl bg-[var(--accent)] text-white">
+                      <MessageSquare size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold">{msg.studyRoomName || "Study Room Invite"}</div>
+                      <div className="text-xs text-[var(--text-muted)]">Room code: {msg.studyRoomId}</div>
+                    </div>
+                    <Link2 size={18} className="text-[var(--accent)]" />
+                  </button>
+                  <div className={`text-[10px] text-[var(--text-muted)] mt-0.5 px-1 ${isMine ? "text-right" : ""}`}>
+                    {format(new Date(msg.createdAt), "h:mm a")}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          
           return (
             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] ${isMine ? "order-1" : ""}`}>
@@ -239,6 +291,13 @@ function ChatArea({ convId }: { convId: string }) {
             }}
           />
           <button
+            className="btn-secondary !rounded-xl !px-4"
+            onClick={() => setShowInviteModal(true)}
+            title="Invite to Study Room"
+          >
+            <MessageSquare size={18} />
+          </button>
+          <button
             className="btn-primary !rounded-xl !px-4"
             onClick={handleSend}
             disabled={!message.trim() || sendMutation.isPending}
@@ -247,6 +306,50 @@ function ChatArea({ convId }: { convId: string }) {
           </button>
         </div>
       </div>
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="card w-full max-w-md p-6 bg-[var(--bg)] animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <MessageSquare className="text-[var(--accent)]" /> Invite to Study Room
+              </h2>
+              <button className="p-1 text-[var(--text-muted)]" onClick={() => setShowInviteModal(false)} aria-label="Close"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Room Code</label>
+                <input
+                  type="text"
+                  className="input w-full text-center text-lg tracking-widest font-mono"
+                  placeholder="e.g. ABC123XY"
+                  value={inviteRoomId}
+                  onChange={(e) => setInviteRoomId(e.target.value.toUpperCase())}
+                  maxLength={8}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Room Name (optional)</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  placeholder="My Study Session"
+                  value={inviteRoomName}
+                  onChange={(e) => setInviteRoomName(e.target.value)}
+                />
+              </div>
+              <p className="text-sm text-[var(--text-muted)]">Enter the study room code you want to invite friends to. They'll be able to join directly from this chat.</p>
+              <div className="flex gap-2 pt-2">
+                <button className="btn-secondary flex-1" onClick={() => { setShowInviteModal(false); setInviteRoomId(""); setInviteRoomName(""); }}>Cancel</button>
+                <button className="btn-primary flex-1" onClick={handleSend} disabled={!inviteRoomId.trim() || sendMutation.isPending}>
+                  {sendMutation.isPending ? "Sending..." : "Send Invite"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

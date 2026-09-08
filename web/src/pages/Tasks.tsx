@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/store/useAuth";
 import { Modal, EmptyState, Tag, ProgressBar, Skeleton } from "@/components/ui";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,6 +55,7 @@ const PRIORITIES = [
 
 export default function Tasks() {
   const queryClient = useQueryClient();
+  const { refreshUser } = useAuth();
   const [view, setView] = useState<string>("Active");
   const [showAdd, setShowAdd] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -85,6 +87,7 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["taskStats"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      refreshUser();
     },
   });
 

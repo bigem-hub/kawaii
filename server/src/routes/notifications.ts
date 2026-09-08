@@ -146,12 +146,24 @@ router.get("/achievements", async (req: Request, res: Response) => {
     const earned = await findMany("userAchievements", "userId", req.user!.id);
 
     const earnedIds = new Set(earned.map((e: any) => e.achievementId));
+    const fitness = await findMany("fitnessEntries", "userId", req.user!.id);
+    const workouts = await findMany("workoutSessions", "userId", req.user!.id);
+    const user = await getById("users", req.user!.id);
+    const dailyStepsGoal = Number(user?.profile?.fitnessGoals?.dailySteps) || 10000;
+    const today = new Date().toISOString().slice(0, 10);
+    const todaySteps = fitness.find((entry: any) => entry.date === today)?.steps || 0;
+    const progress: Record<string, { current: number; target: number }> = {
+      first_workout: { current: workouts.length, target: 1 },
+      "10_workouts": { current: workouts.length, target: 10 },
+      "10k_steps": { current: todaySteps, target: dailyStepsGoal },
+      "100_tasks": { current: 0, target: 100 },
+    };
     res.json(
-      all
-        .map((a: any) => ({
+      all.map((a: any) => ({
           ...hydrate("achievements", a),
           earned: earnedIds.has(a.id),
           earnedAt: earned.find((e: any) => e.achievementId === a.id)?.earnedAt,
+          progress: progress[a.code] || null,
         }))
     );
   } catch (err) {
@@ -168,6 +180,24 @@ export async function checkTaskAchievements(userId: string) {
 
   const userNotes = await findMany("notes", "userId", userId);
   if (userNotes.length >= 50) await awardAchievement(userId, "note_master");
+}
+
+export async function checkFitnessAchievements(userId: string) {
+  const fitness = await findMany("fitnessEntries", "userId", userId);
+  const cardio = await findMany("cardioEntries", "userId", userId);
+  const workouts = await findMany("workoutSessions", "userId", userId);
+  const totalSteps = fitness.reduce((sum: number, entry: any) => sum + (entry.steps || 0), 0);
+  const totalWorkouts = workouts.length;
+  const totalCardio = cardio.length;
+  const user = await getById("users", userId);
+  const dailyStepsGoal = Number(user?.profile?.fitnessGoals?.dailySteps) || 10000;
+  const today = new Date().toISOString().slice(0, 10);
+  const todaySteps = fitness.find((entry: any) => entry.date === today)?.steps || 0;
+
+  if (todaySteps >= dailyStepsGoal) await awardAchievement(userId, "10k_steps");
+  if (totalWorkouts >= 1) await awardAchievement(userId, "first_workout");
+  if (totalWorkouts >= 10) await awardAchievement(userId, "10_workouts");
+  if (totalCardio >= 10) await awardAchievement(userId, "10_cardio");
 }
 
 export default router;

@@ -230,6 +230,21 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (updates.completed === true && !task.completed) {
       updates.completedAt = Date.now();
       updates.status = "completed";
+      
+      // Award XP for completing task
+      const userSnap = await getAt(`users/${req.user!.id}`);
+      if (userSnap) {
+        const currentXp = userSnap.xp || 0;
+        const currentLevel = userSnap.level || 1;
+        const xpGain = 10; // Base XP per task
+        const newXp = currentXp + xpGain;
+        const newLevel = Math.floor(newXp / 100) + 1;
+        
+        await updateRow("users", req.user!.id, {
+          xp: newXp,
+          level: newLevel,
+        });
+      }
     } else if (updates.completed === false && task.completed) {
       updates.completedAt = null;
       updates.status = "pending";
@@ -250,7 +265,19 @@ router.patch("/:id", async (req: Request, res: Response) => {
       await getNested(`tasks/${id}/subtasks`, { taskId: id })
     ).map((s) => hydrate("subtasks", s));
 
-    res.json({ ...updated, subtasks: taskSubtasks });
+    // Return updated user info if task was completed
+    let userInfo = null;
+    if (updates.completed === true && !task.completed) {
+      const userSnap = await getAt(`users/${req.user!.id}`);
+      if (userSnap) {
+        userInfo = {
+          xp: userSnap.xp || 0,
+          level: userSnap.level || 1,
+        };
+      }
+    }
+
+    res.json({ ...updated, subtasks: taskSubtasks, userInfo });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update task" });

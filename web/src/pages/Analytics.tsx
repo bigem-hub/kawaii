@@ -253,7 +253,7 @@ export default function Analytics() {
             <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface-2)]">
               <span className="text-sm">Current weight</span>
               <span className="font-bold">
-                {f?.currentWeight ? `${f.currentWeight} kg` : "Not logged"}
+                {f?.currentWeight !== null && f?.currentWeight !== undefined ? `${f.currentWeight} kg` : "Not logged"}
               </span>
             </div>
           </div>

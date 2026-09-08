@@ -18,6 +18,7 @@ interface WatchRoom {
   privacy: string;
   hostId: string;
   members: any[];
+  memberCount?: number;
   createdAt: number;
 }
 
@@ -118,7 +119,7 @@ export default function WatchTogether() {
               <div className="flex items-center justify-between bg-[var(--surface-2)] rounded-xl p-3">
                 <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
                   <Users size={14} />
-                  <span className="font-semibold text-[var(--text)]">{room.members?.length || 0} watching</span>
+                  <span className="font-semibold text-[var(--text)]">{room.memberCount ?? room.members?.length ?? 0} members</span>
                 </div>
                 <button
                   className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--accent)]"

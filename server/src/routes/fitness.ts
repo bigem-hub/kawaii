@@ -10,9 +10,41 @@ import {
   hydrate,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
+import { checkFitnessAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
+
+router.get("/goals", async (req: Request, res: Response) => {
+  try {
+    const profile = (await getById("users", req.user!.id))?.profile || {};
+    res.json(profile.fitnessGoals || {
+      dailySteps: 10000,
+      weeklyWorkouts: 3,
+      targetWeight: null,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to load fitness goals" });
+  }
+});
+
+router.patch("/goals", async (req: Request, res: Response) => {
+  try {
+    const user = await getById("users", req.user!.id);
+    const profile = user?.profile || {};
+    const fitnessGoals = {
+      dailySteps: Number(req.body.dailySteps) || 10000,
+      weeklyWorkouts: Number(req.body.weeklyWorkouts) || 3,
+      targetWeight: req.body.targetWeight === null || req.body.targetWeight === ""
+        ? null
+        : Number(req.body.targetWeight),
+    };
+    await updateAt(`users/${req.user!.id}/profile`, { ...profile, fitnessGoals });
+    res.json(fitnessGoals);
+  } catch {
+    res.status(500).json({ error: "Failed to save fitness goals" });
+  }
+});
 
 // ============ FITNESS ENTRIES ============
 router.get("/", async (req: Request, res: Response) => {
@@ -57,6 +89,7 @@ router.post("/", async (req: Request, res: Response) => {
     if (existing) {
       await updateAt(`fitnessEntries/${existing.id}`, updates);
       const updated = await getById("fitnessEntries", existing.id);
+      await checkFitnessAchievements(userId);
       res.json(hydrate("fitnessEntries", updated));
     } else {
       const id = uuid();
@@ -67,11 +100,46 @@ router.post("/", async (req: Request, res: Response) => {
         createdAt: Date.now(),
       });
       const created = await getById("fitnessEntries", id);
+      await checkFitnessAchievements(userId);
       res.status(201).json(hydrate("fitnessEntries", created));
     }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to save fitness data" });
+  }
+});
+
+// Compatibility endpoints used by the Android workout form.
+router.post("/exercises", async (req: Request, res: Response) => {
+  try {
+    const { exerciseName, sets, reps, weight, date } = req.body;
+    const id = uuid();
+    const created = {
+      id,
+      userId: req.user!.id,
+      exerciseName: exerciseName || "Workout",
+      sets: Number(sets) || 0,
+      reps: Number(reps) || 0,
+      weight: weight ?? null,
+      date: date || new Date().toISOString().slice(0, 10),
+      createdAt: Date.now(),
+    };
+    await setRow("fitnessEntries", id, created);
+    await checkFitnessAchievements(req.user!.id);
+    res.status(201).json(created);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to save exercise" });
+  }
+});
+
+router.delete("/exercises/:id", async (req: Request, res: Response) => {
+  try {
+    await setAt(`fitnessEntries/${String(req.params.id)}`, null);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete exercise" });
   }
 });
 
@@ -112,6 +180,7 @@ router.post("/cardio", async (req: Request, res: Response) => {
     });
 
     const created = await getById("cardioEntries", id);
+    await checkFitnessAchievements(req.user!.id);
     res.status(201).json(hydrate("cardioEntries", created));
   } catch (err) {
     console.error(err);
@@ -276,6 +345,7 @@ router.post("/sessions", async (req: Request, res: Response) => {
     }
 
     const session = await getById("workoutSessions", id);
+    await checkFitnessAchievements(req.user!.id);
     res.status(201).json({ ...hydrate("workoutSessions", session), sets: createdSets });
   } catch (err) {
     console.error(err);
@@ -319,6 +389,8 @@ router.get("/stats", async (req: Request, res: Response) => {
       fitness
         .filter((f: any) => f.weight)
         .sort((a: any, b: any) => (a.date < b.date ? 1 : -1))[0]?.weight ?? null;
+      const today = new Date().toISOString().slice(0, 10);
+      const todayEntry = fitness.find((entry: any) => entry.date === today);
 
     // Workout streak
     let streak = 0;
@@ -335,6 +407,8 @@ router.get("/stats", async (req: Request, res: Response) => {
       totalWorkoutMinutes,
       totalSteps,
       currentWeight,
+      todayWeight: todayEntry?.weight ?? null,
+      todaySteps: todayEntry?.steps ?? null,
       workoutCount: workouts.length,
       cardioCount: cardio.length,
       workoutStreak: streak,

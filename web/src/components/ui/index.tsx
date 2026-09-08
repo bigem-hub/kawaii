@@ -128,14 +128,14 @@ export function EmptyState({
   message,
   action,
 }: {
-  icon?: string;
+  icon?: string | ReactNode;
   title: string;
   message?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-      <div className="text-6xl mb-4 animate-float">{icon}</div>
+      <div className="text-6xl mb-4 animate-float">{typeof icon === "string" ? icon : <span className="block">{icon}</span>}</div>
       <h3 className="text-lg font-bold mb-1">{title}</h3>
       {message && (
         <p className="text-sm text-[var(--text-muted)] mb-5 max-w-sm">{message}</p>
@@ -205,7 +205,7 @@ export function StatCard({
   value,
   sub,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   value: ReactNode;
   sub?: string;

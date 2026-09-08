@@ -23,6 +23,7 @@ interface Room {
   hostId: string;
   privacy: string;
   members: any[];
+  memberCount?: number;
 }
 
 interface RoomMessage {
@@ -42,11 +43,15 @@ export default function WatchRoom() {
   const [currentTime, setCurrentTime] = useState(0);
   const [newMediaUrl, setNewMediaUrl] = useState("");
   const [showMediaInput, setShowMediaInput] = useState(false);
+  const [watcherCount, setWatcherCount] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const applyingPlaybackRef = useRef(false);
 
   const { data: room, isLoading } = useQuery<Room>({
     queryKey: ["watchRoom", code],
     queryFn: () => api.get(`/watch/rooms/${code}`),
-    refetchInterval: 5000,
+    refetchInterval: 1000,
   });
 
   const { data: messages } = useQuery<RoomMessage[]>({
@@ -54,6 +59,48 @@ export default function WatchRoom() {
     queryFn: () => api.get(`/watch/rooms/${code}/messages`),
     refetchInterval: 2000,
   });
+
+  const isHost = room?.hostId === user?.id;
+
+  const sendEmbedCommand = (command: string, value?: number) => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    const message = room?.mediaProvider === "youtube"
+      ? { event: "command", func: command, args: value === undefined ? [] : [value] }
+      : { method: command, value };
+    iframe.contentWindow.postMessage(JSON.stringify(message), "*");
+  };
+
+  const applyPlayback = (playing: boolean, time: number) => {
+    setIsPlaying(playing);
+    setCurrentTime(time);
+    applyingPlaybackRef.current = true;
+
+    if (videoRef.current) {
+      if (Math.abs(videoRef.current.currentTime - time) > 0.5) {
+        videoRef.current.currentTime = time;
+      }
+      if (playing) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
+    } else if (room?.mediaProvider === "youtube") {
+      if (Math.abs(time - currentTime) > 0.5) sendEmbedCommand("seekTo", time);
+      sendEmbedCommand(playing ? "playVideo" : "pauseVideo");
+    } else if (room?.mediaProvider === "vimeo") {
+      if (Math.abs(time - currentTime) > 0.5) sendEmbedCommand("setCurrentTime", time);
+      sendEmbedCommand(playing ? "play" : "pause");
+    }
+
+    window.setTimeout(() => {
+      applyingPlaybackRef.current = false;
+    }, 100);
+  };
+
+  useEffect(() => {
+    if (room) applyPlayback(room.isPlaying, room.currentTime || 0);
+  }, [room?.isPlaying, room?.currentTime, room?.mediaUrl]);
 
   // Socket for realtime sync
   useEffect(() => {
@@ -63,24 +110,24 @@ export default function WatchRoom() {
     socket.emit("watch:join", { roomId: room.id });
 
     const handlePlay = (data: any) => {
-      setIsPlaying(true);
-      setCurrentTime(data.currentTime);
+      applyPlayback(true, data.currentTime);
     };
     const handlePause = (data: any) => {
-      setIsPlaying(false);
-      setCurrentTime(data.currentTime);
+      applyPlayback(false, data.currentTime);
     };
     const handleSeek = (data: any) => {
-      setCurrentTime(data.currentTime);
+      applyPlayback(isPlaying, data.currentTime);
     };
     const handleMediaChange = () => {
       queryClient.invalidateQueries({ queryKey: ["watchRoom", code] });
     };
+    const handlePresence = (data: { count: number }) => setWatcherCount(data.count);
 
     socket.on("watch:play", handlePlay);
     socket.on("watch:pause", handlePause);
     socket.on("watch:seek", handleSeek);
     socket.on("watch:mediaChange", handleMediaChange);
+    socket.on("watch:presence", handlePresence);
     socket.on("watch:chat", () => {
       queryClient.invalidateQueries({ queryKey: ["watchMessages", code] });
     });
@@ -91,8 +138,9 @@ export default function WatchRoom() {
       socket.off("watch:pause", handlePause);
       socket.off("watch:seek", handleSeek);
       socket.off("watch:mediaChange", handleMediaChange);
+      socket.off("watch:presence", handlePresence);
     };
-  }, [room?.id, code]);
+  }, [room?.id, code, isPlaying]);
 
   const playMutation = useMutation({
     mutationFn: (time: number) => {
@@ -100,7 +148,7 @@ export default function WatchRoom() {
       socket?.emit("watch:play", { roomId: room?.id, currentTime: time });
       return api.patch(`/watch/rooms/${room?.id}/media`, { isPlaying: true, currentTime: time });
     },
-    onSuccess: () => setIsPlaying(true),
+    onSuccess: () => applyPlayback(true, currentTime),
   });
 
   const pauseMutation = useMutation({
@@ -109,7 +157,7 @@ export default function WatchRoom() {
       socket?.emit("watch:pause", { roomId: room?.id, currentTime: time });
       return api.patch(`/watch/rooms/${room?.id}/media`, { isPlaying: false, currentTime: time });
     },
-    onSuccess: () => setIsPlaying(false),
+    onSuccess: () => applyPlayback(false, currentTime),
   });
 
   const sendChat = useMutation({
@@ -130,7 +178,28 @@ export default function WatchRoom() {
     },
   });
 
-  const isHost = room?.hostId === user?.id;
+  const handleNativePlay = () => {
+    if (isHost && !applyingPlaybackRef.current) {
+      playMutation.mutate(videoRef.current?.currentTime || 0);
+    }
+  };
+
+  const handleNativePause = () => {
+    if (isHost && !applyingPlaybackRef.current) {
+      pauseMutation.mutate(videoRef.current?.currentTime || 0);
+    }
+  };
+
+  const togglePlayback = () => {
+    const time = videoRef.current?.currentTime ?? currentTime;
+    if (isPlaying) {
+      applyPlayback(false, time);
+      pauseMutation.mutate(time);
+    } else {
+      applyPlayback(true, time);
+      playMutation.mutate(time);
+    }
+  };
 
   const renderEmbed = () => {
     if (!room?.mediaUrl) {
@@ -154,6 +223,7 @@ export default function WatchRoom() {
       return (
         <iframe
           className="w-full aspect-video rounded-xl"
+          ref={iframeRef}
           src={`https://www.youtube.com/embed/${room.mediaId}?enablejsapi=1`}
           allow="autoplay; encrypted-media"
           allowFullScreen
@@ -167,6 +237,7 @@ export default function WatchRoom() {
       return (
         <iframe
           className="w-full aspect-video rounded-xl"
+          ref={iframeRef}
           src={`https://player.vimeo.com/video/${room.mediaId}?api=1`}
           allow="autoplay; fullscreen"
           allowFullScreen
@@ -179,8 +250,11 @@ export default function WatchRoom() {
     return (
       <video
         className="w-full aspect-video rounded-xl bg-black"
-        controls
+          ref={videoRef}
+          controls={isHost}
         src={room.mediaUrl}
+          onPlay={handleNativePlay}
+          onPause={handleNativePause}
       />
     );
   };
@@ -210,7 +284,7 @@ export default function WatchRoom() {
         <div className="flex items-center gap-2">
           <span className="badge bg-[var(--surface-2)]">{room.code}</span>
           <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-            <Users size={14} /> {room.members?.length || 0} watching
+            <Users size={14} /> {watcherCount ?? room.memberCount ?? room.members?.length ?? 0} watching
           </div>
         </div>
       </div>
@@ -225,7 +299,7 @@ export default function WatchRoom() {
               <div className="p-3 flex items-center gap-3">
                 <button
                   className="btn-primary !rounded-full !p-2"
-                  onClick={() => isPlaying ? pauseMutation.mutate(currentTime) : playMutation.mutate(currentTime)}
+                  onClick={togglePlayback}
                 >
                   {isPlaying ? <Pause size={18} /> : <Play size={18} />}
                 </button>

@@ -18,6 +18,12 @@ interface FitnessEntry {
   notes?: string;
 }
 
+interface FitnessGoals {
+  dailySteps: number;
+  weeklyWorkouts: number;
+  targetWeight: number | null;
+}
+
 interface CardioEntry {
   id: string;
   type: string;
@@ -45,9 +51,15 @@ export default function Fitness() {
   const [showAddRoutine, setShowAddRoutine] = useState(false);
 
   // Weight / daily entries
-  const { data: fitnessEntry, isLoading: entryLoading } = useQuery<FitnessEntry>({
+  const { data: fitnessEntries, isLoading: entryLoading } = useQuery<FitnessEntry[]>({
     queryKey: ["fitnessToday"],
     queryFn: () => api.get("/fitness"),
+  });
+  const fitnessEntry = fitnessEntries?.find((entry) => entry.date === format(new Date(), "yyyy-MM-dd")) || fitnessEntries?.at(-1);
+  const { data: goals } = useQuery<FitnessGoals>({ queryKey: ["fitnessGoals"], queryFn: () => api.get("/fitness/goals") });
+  const goalsMutation = useMutation({
+    mutationFn: (data: Partial<FitnessGoals>) => api.patch("/fitness/goals", { ...goals, ...data }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fitnessGoals"] }),
   });
 
   // Cardio list
@@ -74,6 +86,8 @@ export default function Fitness() {
     mutationFn: (data: any) => api.post("/fitness", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fitnessToday"] });
+      queryClient.invalidateQueries({ queryKey: ["fitnessStats"] });
+      queryClient.invalidateQueries({ queryKey: ["achievements"] });
       toast.success("Weight logged! ⚖️");
       setShowAddWeight(false);
     },
@@ -128,7 +142,8 @@ export default function Fitness() {
         <div className="space-y-4">
           {stats && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard icon="⚖️" label="Today's Weight" value={`${(stats as any).todayWeight || "N/A"} kg`} />
+              <StatCard icon="⚖️" label="Today's Weight" value={`${(stats as any).todayWeight ?? "N/A"} kg`} />
+              <StatCard icon="👣" label="Today's Steps" value={(stats as any).todaySteps?.toLocaleString() ?? "N/A"} />
               <StatCard icon="🏃" label="Total Cardio" value={`${(stats as any).totalCardio || 0} sessions`} />
               <StatCard icon="🔥" label="Calories Burned" value={`${(stats as any).totalCalories || 0}`} />
               <StatCard icon="💪" label="Workouts" value={`${(stats as any).totalWorkouts || 0}`} />
@@ -156,6 +171,15 @@ export default function Fitness() {
               </div>
             </div>
           )}
+          {goals && (
+            <div className="card p-5">
+              <h3 className="font-bold mb-3">Your goals</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <label className="space-y-1"><span className="text-xs text-[var(--text-muted)]">Daily steps</span><input className="input" type="number" value={goals.dailySteps} onChange={(e) => goalsMutation.mutate({ dailySteps: Number(e.target.value) })} /></label>
+                <label className="space-y-1"><span className="text-xs text-[var(--text-muted)]">Weekly workouts</span><input className="input" type="number" value={goals.weeklyWorkouts} onChange={(e) => goalsMutation.mutate({ weeklyWorkouts: Number(e.target.value) })} /></label>
+              </div>
+            </div>
+          )}
           <button className="btn-primary w-full" onClick={() => setShowAddWeight(true)}>
             <Plus size={18} /> Log Today's Weight & Steps
           </button>
@@ -179,7 +203,7 @@ export default function Fitness() {
               <div className="grid grid-cols-3 gap-4 mt-3">
                 <div><span className="text-xs text-[var(--text-muted)]">Weight</span><div className="font-bold">{(fitnessEntry as any).weight || "—"} kg</div></div>
                 <div><span className="text-xs text-[var(--text-muted)]">Steps</span><div className="font-bold">{(fitnessEntry as any).steps?.toLocaleString() || "—"}</div></div>
-                <div><span className="text-xs text-[var(--text-muted)]">Distance</span><div className="font-bold">{(fitnessEntry as any).distance || "—"} km</div></div>
+                <div><span className="text-xs text-[var(--text-muted)]">Distance</span><div className="font-bold">{(fitnessEntry as any).distanceKm ?? "—"} km</div></div>
               </div>
             </div>
           ) : (
@@ -324,7 +348,7 @@ function WeightForm({ onSubmit, onClose, isPending }: { onSubmit: (d: any) => vo
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
         <button
           className="btn-primary"
-          onClick={() => onSubmit({ weight: weight ? parseFloat(weight) : undefined, steps: steps ? parseInt(steps) : undefined, calories: calories ? parseInt(calories) : undefined, distance: distance ? parseFloat(distance) : undefined })}
+          onClick={() => onSubmit({ weight: weight ? parseFloat(weight) : undefined, steps: steps ? parseInt(steps) : undefined, calories: calories ? parseInt(calories) : undefined, distanceKm: distance ? parseFloat(distance) : undefined })}
           disabled={isPending}
         >
           Save
