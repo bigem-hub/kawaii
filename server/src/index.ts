@@ -29,7 +29,17 @@ app.set("trust proxy", 1);
 
 // Security
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://web-git-main-bigem.vercel.app",
+      // any preview URLs from Vercel
+      /\.vercel\.app$/,
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: "10mb" }));
 
 // Rate limiting

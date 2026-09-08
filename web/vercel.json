@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://kawaiilife-2tx288tg6-bigem.vercel.app/api/:path*"
+      "destination": "https://kawaiilife-production.up.railway.app/api/:path*"
     },
     {
       "source": "/((?!api/).*)",
