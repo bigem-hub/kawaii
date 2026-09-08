@@ -10,6 +10,36 @@ import { authMiddleware } from "../auth/middleware.js";
 const router = Router();
 router.use(authMiddleware);
 
+// TEMP DIAGNOSTIC — remove after debugging
+router.get("/diag", async (_req: Request, res: Response) => {
+  try {
+    const hasSa = !!process.env.FIREBASE_SERVICE_ACCOUNT;
+    const hasDb = !!process.env.FIREBASE_DATABASE_URL;
+    let saLen = 0;
+    let saProject: string | null = null;
+    if (hasSa) {
+      try {
+        const parsed = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT as string);
+        saLen = (process.env.FIREBASE_SERVICE_ACCOUNT as string).length;
+        saProject = parsed.project_id;
+      } catch (e: any) {
+        return res.json({ hasSa, hasDb, saParseError: e.message, saLen });
+      }
+    }
+    let dbStatus = "not-tried";
+    try {
+      const { getDB } = await import("../firebase.js");
+      getDB();
+      dbStatus = "ok";
+    } catch (e: any) {
+      dbStatus = "ERROR: " + (e.message || String(e));
+    }
+    res.json({ hasSa, hasDb, saLen, saProject, dbStatus, nodeEnv: process.env.NODE_ENV });
+  } catch (e: any) {
+    res.status(500).json({ diagError: e.message || String(e) });
+  }
+});
+
 // GET /api/users/:username - public profile
 router.get("/users/:username", async (req: Request, res: Response) => {
   try {
