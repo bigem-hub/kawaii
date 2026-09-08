@@ -247,9 +247,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
         });
       }
 
-      // Update streak and check achievements
+      // Update streak (don't check achievements yet — task not persisted)
       await updateStreak(req.user!.id);
-      await checkTaskAchievements(req.user!.id);
     } else if (updates.completed === false && task.completed) {
       updates.completedAt = null;
       updates.status = "pending";
@@ -263,6 +262,11 @@ router.patch("/:id", async (req: Request, res: Response) => {
       }
     }
     await updateRow("tasks", id, updates);
+
+    // Check achievements AFTER the task is persisted (so completed:true is visible to queries)
+    if (updates.completed === true && !task.completed) {
+      await checkTaskAchievements(req.user!.id);
+    }
 
     const updatedSnap = await getAt(`tasks/${id}`);
     const updated = hydrate("tasks", { id, ...updatedSnap });
