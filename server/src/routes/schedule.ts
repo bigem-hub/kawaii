@@ -677,4 +677,258 @@ router.get("/week", async (req: Request, res: Response) => {
   }
 });
 
+// ============ SCHEDULE ITEMS ============
+// Unified Notion-style task entities for the Schedule & Task Manager:
+// Kanban (todo / in_progress / done), time-blocking (date + start/end),
+// academic categories, priority badges, tags, and checkable subtasks.
+
+const VALID_CATEGORIES = ["homework", "study", "exam", "personal", "habit"];
+const VALID_STATUSES = ["todo", "in_progress", "done"];
+const VALID_PRIORITIES = ["high", "medium", "low"];
+
+/** Coerce a value to a JS array (JSON strings are stored as JSON). */
+function parseList(value: unknown): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Parse subtasks (can be a JSON string or an array of {id,title,completed}). */
+function parseSubtasks(value: unknown): { id: string; title: string; completed: boolean }[] {
+  const raw = parseList(value);
+  return raw.map((s: any) => ({
+    id: typeof s?.id === "string" ? s.id : String(Math.random().toString(36).slice(2, 9)),
+    title: String(s?.title ?? ""),
+    completed: !!s?.completed,
+  }));
+}
+
+// GET /api/schedule/items
+router.get("/items", async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { status, category, priority, from, to, search, subjectId } = req.query;
+    let rows = (await findMany("schedule_items", "userId", userId))
+      .map((it) => hydrate("schedule_items", it))
+      .map((it) => ({
+        ...it,
+        tags: parseList(it.tags),
+        subtasks: parseSubtasks(it.subtasks),
+      }));
+
+    if (status) rows = rows.filter((it) => it.status === status);
+    if (category) rows = rows.filter((it) => it.category === category);
+    if (priority) rows = rows.filter((it) => it.priority === priority);
+    if (subjectId) rows = rows.filter((it) => it.subjectId === subjectId);
+    if (search && typeof search === "string") {
+      const q = search.toLowerCase();
+      rows = rows.filter(
+        (it) =>
+          it.title.toLowerCase().includes(q) ||
+          it.notes.toLowerCase().includes(q) ||
+          (it.tags as string[]).some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    if (from) rows = rows.filter((it) => !it.dueDate || it.dueDate >= String(from));
+    if (to) rows = rows.filter((it) => !it.dueDate || it.dueDate <= String(to));
+
+    rows.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return (a.dueDate || "").localeCompare(b.dueDate || "");
+    });
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch schedule items" });
+  }
+});
+
+// POST /api/schedule/items
+router.post("/items", async (req: Request, res: Response) => {
+  try {
+    const id = uuid();
+    const {
+      title,
+      category,
+      status,
+      priority,
+      subjectId,
+      dueDate,
+      dueTime,
+      date,
+      startTime,
+      endTime,
+      tags,
+      subtasks,
+      progress,
+      estimatedMinutes,
+      notes,
+      reminderAt,
+    } = req.body;
+
+    if (!title?.trim()) {
+      res.status(400).json({ error: "Title is required" });
+      return;
+    }
+    const cat = category && VALID_CATEGORIES.includes(category) ? category : "study";
+    const st = status && VALID_STATUSES.includes(status) ? status : "todo";
+    const pr = priority && VALID_PRIORITIES.includes(priority) ? priority : "medium";
+
+    await setRow("schedule_items", id, {
+      userId: req.user!.id,
+      title: title.trim(),
+      category: cat,
+      status: st,
+      priority: pr,
+      subjectId: subjectId || null,
+      dueDate: dueDate || null,
+      dueTime: dueTime || null,
+      date: date || null,
+      startTime: startTime || null,
+      endTime: endTime || null,
+      tags: JSON.stringify(parseList(tags)),
+      subtasks: JSON.stringify(parseSubtasks(subtasks)),
+      progress: Math.min(100, Math.max(0, Number(progress) || 0)),
+      estimatedMinutes: Number(estimatedMinutes) || 0,
+      notes: notes || "",
+      reminderAt: reminderAt || null,
+      sortOrder: Date.now(),
+      completedAt: st === "done" ? Date.now() : null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const item = await getById("schedule_items", id);
+    res.status(201).json({
+      ...hydrate("schedule_items", { id, ...item }),
+      tags: parseList(item?.tags),
+      subtasks: parseSubtasks(item?.subtasks),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create schedule item" });
+  }
+});
+
+// PATCH /api/schedule/items/:id
+router.patch("/items/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const itemSnap = await getAt(`schedule_items/${id}`);
+    if (!itemSnap || itemSnap.userId !== req.user!.id) {
+      res.status(404).json({ error: "Schedule item not found" });
+      return;
+    }
+    const wasDone = itemSnap.status === "done";
+
+    const updates: Record<string, any> = { updatedAt: Date.now() };
+    const allowed = [
+      "title",
+      "category",
+      "status",
+      "priority",
+      "subjectId",
+      "dueDate",
+      "dueTime",
+      "date",
+      "startTime",
+      "endTime",
+      "tags",
+      "subtasks",
+      "progress",
+      "estimatedMinutes",
+      "notes",
+      "reminderAt",
+      "sortOrder",
+    ];
+    for (const key of allowed) {
+      if (req.body[key] === undefined) continue;
+      if (key === "title" && !String(req.body[key]).trim()) {
+        res.status(400).json({ error: "Title cannot be empty" });
+        return;
+      }
+      if (key === "category" && !VALID_CATEGORIES.includes(req.body[key])) continue;
+      if (key === "status" && !VALID_STATUSES.includes(req.body[key])) continue;
+      if (key === "priority" && !VALID_PRIORITIES.includes(req.body[key])) continue;
+      if (key === "tags") updates.tags = JSON.stringify(parseList(req.body[key]));
+      else if (key === "subtasks") updates.subtasks = JSON.stringify(parseSubtasks(req.body[key]));
+      else updates[key] = req.body[key];
+    }
+
+    if (updates.status === "done" && !wasDone) {
+      updates.completedAt = Date.now();
+    } else if (updates.status && updates.status !== "done" && wasDone) {
+      updates.completedAt = null;
+    }
+
+    await updateRow("schedule_items", id, updates);
+
+    const updatedSnap = await getAt(`schedule_items/${id}`);
+    const updated = hydrate("schedule_items", { id, ...updatedSnap });
+
+    // Award XP + streak when an item first moves to Done
+    if (updates.status === "done" && !wasDone) {
+      await awardXp(req.user!.id, 15);
+      await updateStreak(req.user!.id);
+    }
+
+    res.json({
+      ...updated,
+      tags: parseList(updated.tags),
+      subtasks: parseSubtasks(updated.subtasks),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update schedule item" });
+  }
+});
+
+// POST /api/schedule/items/reorder — apply bulk sortOrder updates (kanban reorder)
+router.post("/items/reorder", async (req: Request, res: Response) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      res.status(400).json({ error: "items must be an array" });
+      return;
+    }
+    for (const entry of items) {
+      if (!entry || typeof entry.id !== "string") continue;
+      const snap = await getAt(`schedule_items/${entry.id}`);
+      if (!snap || snap.userId !== req.user!.id) continue;
+      await updateRow("schedule_items", entry.id, {
+        sortOrder: Number(entry.sortOrder) ?? 0,
+        updatedAt: Date.now(),
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to reorder items" });
+  }
+});
+
+// DELETE /api/schedule/items/:id
+router.delete("/items/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const itemSnap = await getAt(`schedule_items/${id}`);
+    if (!itemSnap || itemSnap.userId !== req.user!.id) {
+      res.status(404).json({ error: "Schedule item not found" });
+      return;
+    }
+    await removeRow("schedule_items", id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete schedule item" });
+  }
+});
+
 export default router;

@@ -4,6 +4,7 @@ import { useAuth } from "@/store/useAuth";
 import { useThemeStore } from "@/store/useSettings";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { AppLayout } from "@/components/AppLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Pages
 import Login from "@/pages/Login";
@@ -80,8 +81,9 @@ export default function App() {
   if (!initialized) return <LoadingScreen />;
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route
         path="/"
@@ -113,6 +115,7 @@ export default function App() {
         <Route path="search" element={<Search />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        </Routes>
+      </ErrorBoundary>
   );
 }

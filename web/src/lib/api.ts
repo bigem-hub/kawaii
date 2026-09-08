@@ -4,7 +4,7 @@ export interface ApiError extends Error {
   status?: number;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -15,7 +15,15 @@ async function request<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  } catch {
+    // Network-level failure (offline, DNS, CORS, serverless cold boot timeout)
+    const error = new Error("Network error — check your connection and try again.") as ApiError;
+    error.status = 0;
+    throw error;
+  }
 
   if (res.status === 401) {
     // Clear invalid session
@@ -26,12 +34,25 @@ async function request<T>(
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const error = new Error((data as any).error || "Something went wrong") as ApiError;
+    const error = new Error(data?.error || "Something went wrong") as ApiError;
     error.status = res.status;
     throw error;
   }
 
   return data as T;
+}
+
+/**
+ * Best-effort human-readable message from a thrown error, for toast() calls.
+ */
+export function errMessage(e: unknown): string {
+  if (e instanceof Error && e.message && e.message !== "Failed to fetch") {
+    return e.message;
+  }
+  if (e && typeof e === "object" && "message" in e && (e as any).message) {
+    return String((e as any).message);
+  }
+  return "Something went wrong. Please try again.";
 }
 
 export const api = {

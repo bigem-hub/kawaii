@@ -266,6 +266,25 @@ const DEFAULTS: Record<string, Record<string, any>> = {
   },
   watchRoomMembers: { role: "member" },
   achievements: { icon: "🏆" },
+  schedule_items: {
+    category: "study",
+    status: "todo",
+    priority: "medium",
+    subjectId: null,
+    dueDate: null,
+    dueTime: null,
+    date: null,
+    startTime: null,
+    endTime: null,
+    tags: "[]",
+    subtasks: "[]",
+    progress: 0,
+    estimatedMinutes: 0,
+    notes: "",
+    reminderAt: null,
+    completedAt: null,
+    sortOrder: 0,
+  },
 };
 
 function deepMergeDefaults(defs: Record<string, any>, row: any): any {

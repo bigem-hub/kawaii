@@ -51,6 +51,8 @@ router.get("/summary", async (req: Request, res: Response) => {
     const currentYear = new Date().getFullYear();
     let monthIncome = 0;
     let monthExpense = 0;
+    // Track current-month spending per category so budget progress can be computed.
+    const monthExpenseByCategory: Record<string, number> = {};
 
     for (const t of transactions) {
       if (t.type === "income") {
@@ -64,9 +66,30 @@ router.get("/summary", async (req: Request, res: Response) => {
       const tDate = new Date(t.date);
       if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
         if (t.type === "income") monthIncome += t.amount;
-        else monthExpense += t.amount;
+        else {
+          monthExpense += t.amount;
+          monthExpenseByCategory[t.category] =
+            (monthExpenseByCategory[t.category] || 0) + t.amount;
+        }
       }
     }
+
+    // --- Budgets -----------------------------------------------------------
+    // INVARIANT: allocated budgets are a strict SPENDING ALLOWANCE. They are
+    // computed independently and are NEVER added to balance, totalIncome, or
+    // monthIncome. Total Income reflects only real money earned/received.
+    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+    const budgets = (await findMany("finance_budgets", "userId", userId))
+      .map((b) => hydrate("finance_budgets", b))
+      .filter((b) => b.month === monthKey);
+
+    const totalBudget = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+    const budgetRemaining = totalBudget - monthExpense;
+    const budgetsByCategory = budgets.map((b) => {
+      const budget = Number(b.amount) || 0;
+      const spent = monthExpenseByCategory[b.category] || 0;
+      return { id: b.id, category: b.category, budget, spent, remaining: budget - spent };
+    });
 
     res.json({
       balance,
@@ -74,6 +97,10 @@ router.get("/summary", async (req: Request, res: Response) => {
       totalExpense,
       monthIncome,
       monthExpense,
+      totalBudget,
+      budgetSpent: monthExpense,
+      budgetRemaining,
+      budgetsByCategory,
     });
   } catch (err) {
     console.error(err);
@@ -93,9 +120,19 @@ router.post("/transactions", async (req: Request, res: Response) => {
       return;
     }
 
+    const numericAmount = Number(amount);
+    if (!["income", "expense"].includes(type)) {
+      res.status(400).json({ error: "Type must be 'income' or 'expense'" });
+      return;
+    }
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      res.status(400).json({ error: "Amount must be a positive number" });
+      return;
+    }
+
     await setRow("finance_transactions", id, {
       userId: req.user!.id,
-      amount: Number(amount),
+      amount: numericAmount,
       title: title.trim(),
       description: description || "",
       category: category || "other",
@@ -195,6 +232,125 @@ router.post("/categories", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create category" });
+  }
+});
+
+// ============ BUDGETS ============
+// Monthly spending allowances per expense category. Budgets are a planning
+// tool only — they are NEVER income and never affect balance.
+
+function currentMonthKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// GET /api/finance/budgets
+router.get("/budgets", async (req: Request, res: Response) => {
+  try {
+    const { month } = req.query;
+    let budgets = (await findMany("finance_budgets", "userId", req.user!.id))
+      .map((b) => hydrate("finance_budgets", b))
+      .sort((a: any, b: any) => (a.category || "").localeCompare(b.category || ""));
+    if (month) budgets = budgets.filter((b) => b.month === String(month));
+    res.json(budgets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch budgets" });
+  }
+});
+
+// POST /api/finance/budgets  (creates or replaces the budget for (category, month))
+router.post("/budgets", async (req: Request, res: Response) => {
+  try {
+    const { category, amount, month } = req.body;
+    if (!category?.trim() || amount === undefined) {
+      res.status(400).json({ error: "Category and amount are required" });
+      return;
+    }
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      res.status(400).json({ error: "Amount must be a positive number" });
+      return;
+    }
+    const budgetMonth = month || currentMonthKey();
+
+    // Idempotent upsert per (category, month) — one budget per category per month.
+    const existing = (await findMany("finance_budgets", "userId", req.user!.id))
+      .filter((b: any) => b.category === category && b.month === budgetMonth);
+    if (existing.length > 0) {
+      const id = existing[0].id;
+      await updateRow("finance_budgets", id, {
+        amount: numericAmount,
+        updatedAt: Date.now(),
+      });
+      const snap = await getAt(`finance_budgets/${id}`);
+      res.json(hydrate("finance_budgets", { id, ...snap }));
+      return;
+    }
+
+    const id = uuid();
+    await setRow("finance_budgets", id, {
+      userId: req.user!.id,
+      category: category.trim(),
+      amount: numericAmount,
+      month: budgetMonth,
+      createdAt: Date.now(),
+    });
+    const snap = await getAt(`finance_budgets/${id}`);
+    res.status(201).json(hydrate("finance_budgets", { id, ...snap }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create budget" });
+  }
+});
+
+// PATCH /api/finance/budgets/:id
+router.patch("/budgets/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const snap = await getAt(`finance_budgets/${id}`);
+    if (!snap || snap.userId !== req.user!.id) {
+      res.status(404).json({ error: "Budget not found" });
+      return;
+    }
+    const updates: Record<string, any> = { updatedAt: Date.now() };
+    if (req.body.amount !== undefined) {
+      const numericAmount = Number(req.body.amount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        res.status(400).json({ error: "Amount must be a positive number" });
+        return;
+      }
+      updates.amount = numericAmount;
+    }
+    if (req.body.category !== undefined) {
+      if (!String(req.body.category).trim()) {
+        res.status(400).json({ error: "Category cannot be empty" });
+        return;
+      }
+      updates.category = req.body.category;
+    }
+    await updateRow("finance_budgets", id, updates);
+    const updatedSnap = await getAt(`finance_budgets/${id}`);
+    res.json(hydrate("finance_budgets", { id, ...updatedSnap }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update budget" });
+  }
+});
+
+// DELETE /api/finance/budgets/:id
+router.delete("/budgets/:id", async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const snap = await getAt(`finance_budgets/${id}`);
+    if (!snap || snap.userId !== req.user!.id) {
+      res.status(404).json({ error: "Budget not found" });
+      return;
+    }
+    await removeRow("finance_budgets", id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete budget" });
   }
 });
 

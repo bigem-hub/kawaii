@@ -87,6 +87,11 @@ export function createApp() {
 
   // Error handler
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    // Malformed JSON body should be a 400, not a 500
+    if (err?.type === "entity.parse.failed" || err instanceof SyntaxError) {
+      res.status(400).json({ error: "Invalid JSON body" });
+      return;
+    }
     console.error("Unhandled error:", err);
     res.status(500).json({ error: "Internal server error" });
   });

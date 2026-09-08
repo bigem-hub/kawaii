@@ -5,7 +5,8 @@ import { useAuth } from "@/store/useAuth";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { StatCard, ProgressBar, Skeleton } from "@/components/ui";
-import { CheckCircle, Flame, Trophy, Calendar, BookOpen, MessageCircle, Dumbbell, ArrowRight, GraduationCap, Timer, Play, Pause, Wallet } from "lucide-react";
+import { formatRs } from "@/lib/currency";
+import { CheckCircle, Flame, Trophy, Calendar, BookOpen, MessageCircle, Dumbbell, ArrowRight, GraduationCap, Timer, Play, Pause, Wallet, TrendingUp, TrendingDown, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 
 interface DashboardData {
@@ -24,6 +25,28 @@ interface DashboardData {
   fitness: { cardioCount: number; workouts: number };
   user: { streak: number; level: number; xp: number };
   motivation: string;
+}
+
+interface FinanceSummary {
+  balance: number;
+  totalIncome: number;
+  totalExpense: number;
+  monthIncome: number;
+  monthExpense: number;
+  totalBudget: number;
+  budgetSpent: number;
+  budgetRemaining: number;
+  budgetsByCategory: { id: string; category: string; budget: number; spent: number; remaining: number }[];
+}
+
+interface TodaySchedule {
+  date: string;
+  day: number;
+  classes: any[];
+  homework: any[];
+  studySessions: any[];
+  currentClass: any | null;
+  nextClass: any | null;
 }
 
 export default function Dashboard() {
@@ -66,9 +89,20 @@ export default function Dashboard() {
     }, 1000);
     return () => window.clearInterval(interval);
   }, [focusRunning]);
+
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: () => api.get("/dashboard"),
+  });
+
+  const { data: finance, isLoading: financeLoading } = useQuery<FinanceSummary>({
+    queryKey: ["finance", "summary"],
+    queryFn: () => api.get("/finance/summary"),
+  });
+
+  const { data: todaySched, isLoading: schedLoading } = useQuery<TodaySchedule>({
+    queryKey: ["schedule", "today"],
+    queryFn: () => api.get("/schedule/today"),
   });
 
   if (isLoading) {
@@ -87,6 +121,8 @@ export default function Dashboard() {
   }
 
   const d = data!;
+  const classesToday = todaySched?.classes ?? [];
+  const homeworkToday = todaySched?.homework ?? [];
 
   return (
     <motion.div
@@ -120,12 +156,51 @@ export default function Dashboard() {
         <p className="text-sm font-medium italic">"{d.motivation}"</p>
       </motion.div>
 
-      {/* Stats */}
+      {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={<CheckCircle size={20} />} label="Tasks done today" value={d.taskStats.completedToday} sub={`${d.taskStats.pending} pending`} />
+        <StatCard icon={<CalendarDays size={20} />} label="Classes today" value={classesToday.length} sub={homeworkToday.length ? `${homeworkToday.length} due` : "No homework due"} />
+        <StatCard icon={<Wallet size={20} />} label="Balance" value={formatRs(finance?.balance ?? 0)} sub="See Finance" />
         <StatCard icon={<Flame size={20} />} label="Current streak" value={`${d.user.streak} days`} />
-        <StatCard icon={<Trophy size={20} />} label="Total completed" value={d.taskStats.completed} sub={`${d.taskStats.total} total`} />
-        <StatCard icon={<GraduationCap size={20} />} label="XP" value={`${d.user.xp || 0} xp`} sub={`Level ${d.user.level}`} />
+      </div>
+
+      {/* Today's Agenda (classes + homework) */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold flex items-center gap-2"><CalendarDays size={18} /> Today's Agenda</h2>
+          <Link to="/schedule" className="text-xs font-semibold text-[var(--accent)] flex items-center gap-1 hover:underline">
+            Open schedule <ArrowRight size={14} />
+          </Link>
+        </div>
+        {schedLoading ? (
+          <Skeleton className="h-20" />
+        ) : classesToday.length === 0 && homeworkToday.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)] py-2">Nothing scheduled today. Enjoy the free time! 🌿</p>
+        ) : (
+          <div className="space-y-2">
+            {classesToday.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface-2)]">
+                <GraduationCap size={16} className="text-[var(--accent)] shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium">{c.subjectName || c.name || "Class"}</span>
+                  {c.room && <span className="text-[11px] text-[var(--text-muted)] ml-2">Room {c.room}</span>}
+                </div>
+                <span className="text-xs font-semibold text-[var(--text-muted)] whitespace-nowrap">
+                  {c.startTime}–{c.endTime}
+                </span>
+              </div>
+            ))}
+            {homeworkToday.map((h: any) => (
+              <div key={h.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface-2)]">
+                <BookOpen size={16} className="text-amber-500 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm">{h.title || h.name}</span>
+                </div>
+                <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 text-[10px]">Due today</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* XP Progress */}
@@ -174,6 +249,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Study Focus */}
         <div className="card p-5 md:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -200,10 +276,72 @@ export default function Dashboard() {
             <div className="p-4 rounded-xl border border-[var(--border)]">
               <div className="text-xs text-[var(--text-muted)]">Suggested rhythm</div>
               <div className="font-semibold mt-1">25 min focus / 5 min break</div>
-              <p className="text-xs text-[var(--text-muted)] mt-2">Use Tasks for assignments and Notes for revision summaries.</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">Use the Schedule tab to plan homework and study blocks.</p>
             </div>
           </div>
         </div>
+
+        {/* Finance summary */}
+        <div className="card p-5 md:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold flex items-center gap-2"><Wallet size={18} /> Finance</h2>
+            <Link to="/finance" className="text-xs font-semibold text-[var(--accent)] hover:underline">View Finances</Link>
+          </div>
+          {financeLoading ? (
+            <Skeleton className="h-24" />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-[var(--surface-2)]">
+                  <div className="text-xs text-[var(--text-muted)]">Balance</div>
+                  <div className="font-bold text-lg mt-1">{formatRs(finance?.balance ?? 0)}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[var(--surface-2)]">
+                  <div className="text-xs text-[var(--text-muted)] flex items-center gap-1"><TrendingUp size={11} /> Income (Month)</div>
+                  <div className="font-bold text-lg mt-1 text-green-500">+{formatRs(finance?.monthIncome ?? 0)}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[var(--surface-2)]">
+                  <div className="text-xs text-[var(--text-muted)] flex items-center gap-1"><TrendingDown size={11} /> Expenses (Month)</div>
+                  <div className="font-bold text-lg mt-1 text-red-500">-{formatRs(finance?.monthExpense ?? 0)}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[var(--surface-2)]">
+                  <div className="text-xs text-[var(--text-muted)]">Budget remaining</div>
+                  <div className="font-bold text-lg mt-1">{formatRs(finance?.budgetRemaining ?? 0)}</div>
+                  {finance && finance.totalBudget > 0 && (
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                      of {formatRs(finance.totalBudget)} budget
+                    </div>
+                  )}
+                </div>
+              </div>
+              {finance && finance.budgetsByCategory.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {finance.budgetsByCategory.map((b) => {
+                    const pct = b.budget > 0 ? Math.min(100, Math.round((b.spent / b.budget) * 100)) : 0;
+                    const over = b.spent > b.budget;
+                    return (
+                      <div key={b.id || b.category}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium capitalize">{b.category}</span>
+                          <span className={over ? "text-red-500 font-semibold" : "text-[var(--text-muted)]"}>
+                            {formatRs(b.spent)} / {formatRs(b.budget)}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[var(--surface-2)] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-[var(--accent)]"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Upcoming events */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
@@ -251,28 +389,25 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* De-emphasized fitness + chat preview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Fitness summary */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold flex items-center gap-2"><Dumbbell size={18} /> Fitness</h2>
+        <div className="card p-4 opacity-60 hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-bold text-sm flex items-center gap-2"><Dumbbell size={16} /> Fitness</h2>
             <Link to="/fitness" className="text-xs font-semibold text-[var(--accent)] hover:underline">Details</Link>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-[var(--surface-2)] text-center">
-              <div className="text-[var(--accent)] mb-1"><Dumbbell size={22} className="mx-auto" /></div>
-              <div className="font-bold text-lg">{d.fitness.cardioCount}</div>
-              <div className="text-[10px] text-[var(--text-muted)]">Cardio sessions</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-xl bg-[var(--surface-2)] text-center">
+              <div className="font-bold text-base">{d.fitness.cardioCount}</div>
+              <div className="text-[10px] text-[var(--text-muted)]">Cardio</div>
             </div>
-            <div className="p-3 rounded-xl bg-[var(--surface-2)] text-center">
-              <div className="text-[var(--accent)] mb-1"><CheckCircle size={22} className="mx-auto" /></div>
-              <div className="font-bold text-lg">{d.fitness.workouts}</div>
+            <div className="p-2 rounded-xl bg-[var(--surface-2)] text-center">
+              <div className="font-bold text-base">{d.fitness.workouts}</div>
               <div className="text-[10px] text-[var(--text-muted)]">Workouts</div>
             </div>
           </div>
         </div>
 
-        {/* Chat preview */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-bold flex items-center gap-2"><MessageCircle size={18} /> Recent Chat</h2>
@@ -281,28 +416,6 @@ export default function Dashboard() {
           <div className="text-center py-6">
             <MessageCircle size={28} className="mx-auto mb-2 text-[var(--accent)]" />
             <p className="text-sm text-[var(--text-muted)]">Start a conversation!</p>
-          </div>
-        </div>
-
-        {/* Finance summary */}
-        <div className="card p-5 md:col-span-2">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold flex items-center gap-2"><Wallet size={18} /> Finance</h2>
-            <Link to="/finance" className="text-xs font-semibold text-[var(--accent)] hover:underline">View Finances</Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-[var(--surface-2)]">
-              <div className="text-xs text-[var(--text-muted)]">Balance</div>
-              <div className="font-bold text-lg mt-1">$0.00</div>
-            </div>
-            <div className="p-3 rounded-xl bg-[var(--surface-2)]">
-              <div className="text-xs text-[var(--text-muted)]">Income (This Month)</div>
-              <div className="font-bold text-lg mt-1 text-green-500">+$0.00</div>
-            </div>
-            <div className="p-3 rounded-xl bg-[var(--surface-2)]">
-              <div className="text-xs text-[var(--text-muted)]">Expenses (This Month)</div>
-              <div className="font-bold text-lg mt-1 text-red-500">-$0.00</div>
-            </div>
           </div>
         </div>
       </div>

@@ -4,7 +4,10 @@ import { api } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, TrendingUp, TrendingDown, Plus, Trash2, Edit2, Search, Filter, Calendar, PieChart, BarChart2, Download, ChevronDown } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
+import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui";
+import { formatRs } from "@/lib/currency";
+import { errMessage } from "@/lib/api";
 import {
   PieChart as RechartsPieChart,
   Pie,
@@ -36,6 +39,17 @@ interface Summary {
   totalExpense: number;
   monthIncome: number;
   monthExpense: number;
+  totalBudget: number;
+  budgetSpent: number;
+  budgetRemaining: number;
+  budgetsByCategory: { id: string; category: string; budget: number; spent: number; remaining: number }[];
+}
+
+interface Budget {
+  id: string;
+  category: string;
+  amount: number;
+  month: string;
 }
 
 interface Category {
@@ -106,6 +120,9 @@ export default function Finance() {
     date: new Date().toISOString().split("T")[0],
   });
 
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false);
+  const [budgetForm, setBudgetForm] = useState({ category: "food", amount: "" });
+
   const { data: summary, isLoading: loadingSummary } = useQuery<Summary>({
     queryKey: ["finance", "summary"],
     queryFn: () => api.get("/finance/summary"),
@@ -119,6 +136,11 @@ export default function Finance() {
   const { data: categories, isLoading: loadingCategories } = useQuery<Category[]>({
     queryKey: ["finance", "categories"],
     queryFn: () => api.get("/finance/categories"),
+  });
+
+  const { data: budgets = [] } = useQuery<Budget[]>({
+    queryKey: ["finance", "budgets"],
+    queryFn: () => api.get("/finance/budgets"),
   });
 
   // Filter transactions based on date filter, type, category, and search
@@ -314,6 +336,37 @@ export default function Finance() {
     },
   });
 
+  const createBudgetMutation = useMutation({
+    mutationFn: (data: { category: string; amount: number }) =>
+      api.post("/finance/budgets", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finance"] });
+      toast.success("Budget saved");
+      setBudgetModalOpen(false);
+      setBudgetForm({ category: "food", amount: "" });
+    },
+    onError: (e) => toast.error(errMessage(e)),
+  });
+
+  const deleteBudgetMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/finance/budgets/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finance"] });
+      toast.success("Budget removed");
+    },
+    onError: (e) => toast.error(errMessage(e)),
+  });
+
+  const handleBudgetSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(budgetForm.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Enter a valid budget amount");
+      return;
+    }
+    createBudgetMutation.mutate({ category: budgetForm.category, amount });
+  };
+
   const handleOpenModal = (txn?: Transaction) => {
     if (txn) {
       setEditingTxn(txn);
@@ -499,7 +552,7 @@ export default function Finance() {
               <button className="text-xs text-[var(--accent)] hover:underline" onClick={() => { setNewBalance(filteredSummary.balance.toFixed(2)); setIsBalanceModalOpen(true); }}>Adjust</button>
             </div>
             <div className="text-3xl font-bold mt-2">
-              NRS {filteredSummary.balance.toFixed(2)}
+              {formatRs(filteredSummary.balance)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">
               {filteredSummary.balance >= 0 ? "Positive" : "Negative"} balance
@@ -510,7 +563,7 @@ export default function Finance() {
               <TrendingUp size={16} className="text-green-500" /> Income
             </div>
             <div className="text-3xl font-bold mt-2 text-green-500">
-              +NRS {filteredSummary.totalIncome.toFixed(2)}
+              +{formatRs(filteredSummary.totalIncome)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">This period</p>
           </div>
@@ -519,12 +572,69 @@ export default function Finance() {
               <TrendingDown size={16} className="text-red-500" /> Expenses
             </div>
             <div className="text-3xl font-bold mt-2 text-red-500">
-              -NRS {filteredSummary.totalExpense.toFixed(2)}
+              -{formatRs(filteredSummary.totalExpense)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">This period</p>
           </div>
         </div>
       )}
+
+      {/* Budgets */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-bold flex items-center gap-2"><Wallet size={18} className="text-[var(--accent)]" /> Monthly Budgets</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Budgets are a spending allowance and are never counted as income or balance.
+            </p>
+          </div>
+          <button className="btn-secondary text-sm" onClick={() => setBudgetModalOpen(true)}>
+            <Plus size={14} /> Add Budget
+          </button>
+        </div>
+        {budgets.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)] py-2">
+            No budgets set. Add a budget to track spending against an allowance per category.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {budgets.map((b) => {
+              const spent = summary?.budgetsByCategory?.find((x) => x.category === b.category)?.spent ?? 0;
+              const pct = b.amount > 0 ? Math.min(100, Math.round((spent / b.amount) * 100)) : 0;
+              const over = spent > b.amount;
+              return (
+                <div key={b.id} className="p-3 rounded-xl bg-[var(--surface-2)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-sm capitalize">{b.category}</span>
+                    <button
+                      onClick={() => deleteBudgetMutation.mutate(b.id)}
+                      className="text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                      aria-label={`Remove ${b.category} budget`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[var(--text-muted)] mb-1.5">
+                    <span className={over ? "text-red-500 font-semibold" : ""}>
+                      {formatRs(spent)} spent
+                    </span>
+                    <span>of {formatRs(b.amount)}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[var(--surface)] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-[var(--accent)]"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className={`text-[11px] mt-1 ${over ? "text-red-500" : "text-[var(--text-muted)]"}`}>
+                    {over ? `${formatRs(spent - b.amount)} over budget` : `${formatRs(b.amount - spent)} remaining`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Charts */}
       {(expenseByCategory.length > 0 || incomeByCategory.length > 0) && (
@@ -559,7 +669,7 @@ export default function Finance() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
+                      formatter={(value: number) => [formatRs(value), ""]}
                       contentStyle={{
                         backgroundColor: "var(--card-bg)",
                         border: "1px solid var(--border)",
@@ -614,7 +724,7 @@ export default function Finance() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
+                      formatter={(value: number) => [formatRs(value), ""]}
                       contentStyle={{
                         backgroundColor: "var(--card-bg)",
                         border: "1px solid var(--border)",
@@ -657,7 +767,7 @@ export default function Finance() {
                 <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" tick={{ fill: "var(--text-muted)", fontSize: 11 }} width={60} />
                 <Tooltip
-                  formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
+                  formatter={(value: number) => [formatRs(value), ""]}
                   contentStyle={{
                     backgroundColor: "var(--card-bg)",
                     border: "1px solid var(--border)",
@@ -794,6 +904,55 @@ export default function Finance() {
                   <button type="button" className="btn-secondary flex-1" onClick={() => setIsBalanceModalOpen(false)}>Cancel</button>
                   <button type="submit" className="btn-primary flex-1" disabled={createMutation.isPending}>
                     Confirm
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {budgetModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              className="card w-full max-w-sm p-6 bg-[var(--bg)]"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <h2 className="text-xl font-bold mb-4">Add Monthly Budget</h2>
+              <p className="text-xs text-[var(--text-muted)] mb-4">
+                Set a spending allowance for a category this month. Budgets never count toward income or balance.
+              </p>
+              <form onSubmit={handleBudgetSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Category</label>
+                  <select
+                    className="input w-full"
+                    value={budgetForm.category}
+                    onChange={e => setBudgetForm({ ...budgetForm, category: e.target.value })}
+                  >
+                    {EXPENSE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Amount (Rs.)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    className="input w-full"
+                    value={budgetForm.amount}
+                    onChange={e => setBudgetForm({ ...budgetForm, amount: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="flex gap-2 pt-4">
+                  <button type="button" className="btn-secondary flex-1" onClick={() => setBudgetModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn-primary flex-1" disabled={createBudgetMutation.isPending}>
+                    {createBudgetMutation.isPending ? "Saving..." : "Save Budget"}
                   </button>
                 </div>
               </form>

@@ -22,35 +22,61 @@ import {
   Sparkles,
   Wallet,
   CalendarDays,
+  MoreHorizontal,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 
-const navItems = [
-  { to: "/dashboard", icon: Home, label: "Home" },
-  { to: "/tasks", icon: CheckSquare, label: "Tasks" },
-  { to: "/schedule", icon: CalendarDays, label: "Schedule" },
-  { to: "/study", icon: GraduationCap, label: "Study" },
-  { to: "/notes", icon: BookOpen, label: "Notes" },
-  { to: "/chat", icon: MessageCircle, label: "Chat" },
-  { to: "/friends", icon: Users, label: "Friends" },
-  { to: "/finance", icon: Wallet, label: "Finance" },
-  { to: "/fitness", icon: Dumbbell, label: "Fitness" },
-  { to: "/calendar", icon: Calendar, label: "Calendar" },
-  { to: "/watch", icon: Tv, label: "Watch" },
-  { to: "/stats", icon: BarChart3, label: "Stats" },
+interface NavItem {
+  to: string;
+  icon: any;
+  label: string;
+}
+
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Start",
+    items: [
+      { to: "/dashboard", icon: Home, label: "Home" },
+      { to: "/schedule", icon: CalendarDays, label: "Schedule" },
+      { to: "/tasks", icon: CheckSquare, label: "Tasks" },
+      { to: "/notes", icon: BookOpen, label: "Notes" },
+    ],
+  },
+  {
+    title: "Study & Finance",
+    items: [
+      { to: "/study", icon: GraduationCap, label: "Study" },
+      { to: "/finance", icon: Wallet, label: "Finance" },
+    ],
+  },
+  {
+    title: "Social",
+    items: [
+      { to: "/chat", icon: MessageCircle, label: "Chat" },
+      { to: "/friends", icon: Users, label: "Friends" },
+      { to: "/watch", icon: Tv, label: "Watch" },
+    ],
+  },
+  {
+    title: "Extras",
+    items: [
+      { to: "/fitness", icon: Dumbbell, label: "Fitness" },
+      { to: "/calendar", icon: Calendar, label: "Calendar" },
+      { to: "/stats", icon: BarChart3, label: "Stats" },
+      { to: "/search", icon: Search, label: "Search" },
+    ],
+  },
 ];
 
-const bottomNav = [
+const bottomNav: NavItem[] = [
   { to: "/dashboard", icon: Home, label: "Home" },
-  { to: "/tasks", icon: CheckSquare, label: "Tasks" },
   { to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { to: "/study", icon: GraduationCap, label: "Study" },
-  { to: "/chat", icon: MessageCircle, label: "Chat" },
-  { to: "/fitness", icon: Dumbbell, label: "Fit" },
-  { to: "/friends", icon: Users, label: "Friends" },
+  { to: "/finance", icon: Wallet, label: "Finance" },
+  { to: "/tasks", icon: CheckSquare, label: "Tasks" },
 ];
 
 export function AppLayout() {
@@ -101,13 +127,22 @@ export function AppLayout() {
             <div className="text-[var(--accent)]"><Sparkles size={28} /></div>
             <div>
               <h1 className="font-bold text-lg leading-tight gradient-text">KawaiiLife</h1>
-              <div className="text-[10px] text-[var(--text-muted)]">Productivity & Social</div>
+              <div className="text-[10px] text-[var(--text-muted)]">Study · Finance · Productivity</div>
             </div>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item) => (
-            <SidebarLink key={item.to} {...item} />
+        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.title}>
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                {group.title}
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <SidebarLink key={item.to} {...item} />
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <div className="p-3 border-t border-[var(--border)] space-y-1">
@@ -140,7 +175,7 @@ export function AppLayout() {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-[var(--border)]">
         <div className="flex items-center justify-between px-4 h-14">
-          <button onClick={() => setSidebarOpen(true)} className="p-2">
+          <button onClick={() => setSidebarOpen(true)} className="p-2" aria-label="Open menu">
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
@@ -148,13 +183,15 @@ export function AppLayout() {
             <span className="font-bold gradient-text">KawaiiLife</span>
           </div>
           <div className="flex items-center gap-1">
-            <NavLink to="/search" className="p-2">
+            <NavLink to="/search" className="p-2" aria-label="Search">
               <Search size={20} />
             </NavLink>
             <div className="relative" ref={notifRef}>
               <button
                 className="p-2 relative"
                 onClick={() => setShowNotifs(!showNotifs)}
+                aria-expanded={showNotifs}
+                aria-label="Notifications"
               >
                 <Bell size={20} />
                 {unreadCount > 0 && (
@@ -199,17 +236,26 @@ export function AppLayout() {
                   <span className="text-[var(--accent)]"><Sparkles size={26} /></span>
                   <span className="font-bold gradient-text text-lg">KawaiiLife</span>
                 </div>
-                <button onClick={() => setSidebarOpen(false)} className="p-1">
+                <button onClick={() => setSidebarOpen(false)} className="p-1" aria-label="Close menu">
                   <X size={20} />
                 </button>
               </div>
-              <nav className="space-y-1">
-                {navItems.map((item) => (
-                  <SidebarLink
-                    key={item.to}
-                    {...item}
-                    onClick={() => setSidebarOpen(false)}
-                  />
+              <nav className="space-y-4">
+                {NAV_GROUPS.map((group) => (
+                  <div key={group.title}>
+                    <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      {group.title}
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.items.map((item) => (
+                        <SidebarLink
+                          key={item.to}
+                          {...item}
+                          onClick={() => setSidebarOpen(false)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 ))}
                 <div className="border-t border-[var(--border)] my-2" />
                 <SidebarLink
@@ -256,13 +302,15 @@ export function AppLayout() {
         {/* Desktop top bar with notification bell */}
         <div className="hidden lg:flex items-center justify-end px-6 py-3 border-b border-[var(--border)] sticky top-0 z-30 bg-[var(--bg)]/80 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <NavLink to="/search" className="p-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors">
+            <NavLink to="/search" className="p-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors" aria-label="Search">
               <Search size={18} className="text-[var(--text-muted)]" />
             </NavLink>
             <div className="relative" ref={notifRef}>
               <button
                 className="p-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors relative"
                 onClick={() => setShowNotifs(!showNotifs)}
+                aria-expanded={showNotifs}
+                aria-label="Notifications"
               >
                 <Bell size={18} className="text-[var(--text-muted)]" />
                 {unreadCount > 0 && (
@@ -313,6 +361,14 @@ export function AppLayout() {
               </NavLink>
             );
           })}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors"
+            aria-label="More"
+          >
+            <MoreHorizontal size={22} className="text-[var(--text-muted)]" />
+            <span className="text-[10px] font-semibold text-[var(--text-muted)]">More</span>
+          </button>
         </div>
       </nav>
     </div>
@@ -334,6 +390,8 @@ function NotifDropdown({
     <AnimatePresence>
       {open && (
         <motion.div
+          role="dialog"
+          aria-label="Notifications"
           className="absolute right-0 top-10 w-80 card shadow-kawaii-lg z-50 overflow-hidden"
           initial={{ opacity: 0, y: -8, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

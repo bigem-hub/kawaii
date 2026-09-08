@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 
 // ---------- Modal ----------
 export function Modal({
@@ -34,6 +34,9 @@ export function Modal({
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title || "Dialog"}
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">{title}</h2>
@@ -73,7 +76,9 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title} maxWidth="max-w-sm">
-      <p className="text-sm text-[var(--text-muted)] mb-5">{message}</p>
+      <div id="confirm-dialog-message">
+        <p className="text-sm text-[var(--text-muted)] mb-5">{message}</p>
+      </div>
       <div className="flex gap-3 justify-end">
         <button className="btn-secondary" onClick={onClose}>
           Cancel
@@ -257,3 +262,38 @@ export function ProgressBar({ value, color }: { value: number; color?: string })
 
 // ---------- Toast (wrapper for react-hot-toast) ----------
 export { toast } from "react-hot-toast";
+
+// ---------- Spinner ----------
+export function Spinner({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return <Loader2 size={size} className={`animate-spin ${className}`} aria-hidden="true" />;
+}
+
+// ---------- LoadingButton ----------
+export function LoadingButton({
+  loading,
+  children,
+  loadingText,
+  className = "",
+  disabled,
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  loading?: boolean;
+  loadingText?: string;
+}) {
+  return (
+    <button
+      {...rest}
+      className={`btn-primary ${className}`}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+    >
+      {loading ? (
+        <>
+          <Spinner size={16} /> {loadingText || children}
+        </>
+      ) : (
+        children
+      )}
+    </button>
+  );
+}
