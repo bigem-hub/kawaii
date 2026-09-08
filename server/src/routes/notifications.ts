@@ -35,14 +35,9 @@ export async function createNotification(
     data: JSON.stringify(data),
     createdAt: Date.now(),
   });
-  // Emit realtime (no-op on serverless where Socket.IO isn't initialized —
-  // the notification is already persisted to Firebase and served via REST)
-  try {
-    const io = getIO();
-    io.to(`user:${userId}`).emit("notification", { id, type, title, body, data });
-  } catch {
-    // Realtime not available — skip live push
-  }
+  // Emit realtime — null-safe no-op on serverless where Socket.IO isn't
+  // initialized; the notification is already persisted and served via REST.
+  getIO()?.to(`user:${userId}`).emit("notification", { id, type, title, body, data });
   return id;
 }
 

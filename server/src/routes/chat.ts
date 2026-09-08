@@ -306,7 +306,7 @@ router.post("/:convId/messages", async (req: Request, res: Response) => {
     );
     members.forEach((m: any) => {
       getIO()
-        .to(`user:${m.userId}`)
+        ?.to(`user:${m.userId}`)
         .emit("chat:message", { conversationId: convId, message: payload });
     });
 
@@ -393,7 +393,7 @@ router.post("/messages/:id/react", async (req: Request, res: Response) => {
       messageId: msg.id,
     });
     getIO()
-      .to(`user:${msg.senderId}`)
+      ?.to(`user:${msg.senderId}`)
       .emit("chat:reaction", { messageId: msg.id, reactions });
     res.json({ messageId: msg.id, reactions });
   } catch (err) {

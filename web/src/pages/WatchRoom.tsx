@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/store/useAuth";
-import { getSocket } from "@/lib/socket";
 import { Avatar, Skeleton } from "@/components/ui";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
@@ -102,50 +101,13 @@ export default function WatchRoom() {
     if (room) applyPlayback(room.isPlaying, room.currentTime || 0);
   }, [room?.isPlaying, room?.currentTime, room?.mediaUrl]);
 
-  // Socket for realtime sync
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket || !room) return;
-
-    socket.emit("watch:join", { roomId: room.id });
-
-    const handlePlay = (data: any) => {
-      applyPlayback(true, data.currentTime);
-    };
-    const handlePause = (data: any) => {
-      applyPlayback(false, data.currentTime);
-    };
-    const handleSeek = (data: any) => {
-      applyPlayback(isPlaying, data.currentTime);
-    };
-    const handleMediaChange = () => {
-      queryClient.invalidateQueries({ queryKey: ["watchRoom", code] });
-    };
-    const handlePresence = (data: { count: number }) => setWatcherCount(data.count);
-
-    socket.on("watch:play", handlePlay);
-    socket.on("watch:pause", handlePause);
-    socket.on("watch:seek", handleSeek);
-    socket.on("watch:mediaChange", handleMediaChange);
-    socket.on("watch:presence", handlePresence);
-    socket.on("watch:chat", () => {
-      queryClient.invalidateQueries({ queryKey: ["watchMessages", code] });
-    });
-
-    return () => {
-      socket.emit("watch:leave", { roomId: room.id });
-      socket.off("watch:play", handlePlay);
-      socket.off("watch:pause", handlePause);
-      socket.off("watch:seek", handleSeek);
-      socket.off("watch:mediaChange", handleMediaChange);
-      socket.off("watch:presence", handlePresence);
-    };
-  }, [room?.id, code, isPlaying]);
+  // Realtime sync no longer uses Socket.IO — it's a no-op on the serverless
+  // backend. The room and message queries below poll (1s / 2s) and
+  // applyPlayback() replays the host's state, which is what keeps everyone
+  // in sync in production.
 
   const playMutation = useMutation({
     mutationFn: (time: number) => {
-      const socket = getSocket();
-      socket?.emit("watch:play", { roomId: room?.id, currentTime: time });
       return api.patch(`/watch/rooms/${room?.id}/media`, { isPlaying: true, currentTime: time });
     },
     onSuccess: () => applyPlayback(true, currentTime),
@@ -153,8 +115,6 @@ export default function WatchRoom() {
 
   const pauseMutation = useMutation({
     mutationFn: (time: number) => {
-      const socket = getSocket();
-      socket?.emit("watch:pause", { roomId: room?.id, currentTime: time });
       return api.patch(`/watch/rooms/${room?.id}/media`, { isPlaying: false, currentTime: time });
     },
     onSuccess: () => applyPlayback(false, currentTime),

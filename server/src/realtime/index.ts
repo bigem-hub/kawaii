@@ -248,7 +248,13 @@ export function initRealtime(server: any) {
   return io;
 }
 
-export function getIO(): Server {
-  if (!io) throw new Error("Realtime not initialized");
+/**
+ * Returns the Socket.IO server, or null when realtime isn't initialized
+ * (always the case on Vercel serverless, where persistent connections
+ * can't exist). Call sites use optional chaining so a live emit is a
+ * no-op instead of throwing and 500ing the REST request — persistence
+ * still happens via Firebase, and clients get updates via polling.
+ */
+export function getIO(): Server | null {
   return io;
 }

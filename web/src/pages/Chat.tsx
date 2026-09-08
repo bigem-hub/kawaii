@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { getSocket } from "@/lib/socket";
 import { useAuth } from "@/store/useAuth";
 import { Avatar, EmptyState, Skeleton } from "@/components/ui";
 import { Send, Plus, Users, Search, MessageSquare, Link2, X } from "lucide-react";
@@ -37,6 +36,10 @@ export default function Chat() {
   const { data: conversations, isLoading } = useQuery<Conversation[]>({
     queryKey: ["conversations"],
     queryFn: () => api.get("/chat/conversations"),
+    // Socket.IO is a no-op on the serverless backend, so poll for live
+    // updates instead (message previews, unread badges, new conversations).
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 
   return (
@@ -118,13 +121,16 @@ function ChatArea({ convId }: { convId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
-  const [isTyping, setIsTyping] = useState<string | null>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
 
   const { data: messages } = useQuery<Message[]>({
     queryKey: ["messages", convId],
     queryFn: () => api.get(`/chat/${convId}/messages`),
+    // Poll for live updates (Socket.IO is unavailable on serverless).
+    // GET /chat/:id/messages also marks the conversation read server-side,
+    // so polling keeps unread badges accurate too.
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -140,44 +146,11 @@ function ChatArea({ convId }: { convId: string }) {
     },
   });
 
-  // Socket listeners
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    const handleNewMessage = (data: any) => {
-      if (data.conversationId === convId) {
-        setLocalMessages((prev) => [...prev, data.message]);
-        socket.emit("chat:markRead", { conversationId: convId });
-      }
-    };
-
-    const handleTyping = (data: any) => {
-      if (data.conversationId === convId) {
-        setIsTyping(data.isTyping ? data.userId : null);
-      }
-    };
-
-    socket.on("chat:message", handleNewMessage);
-    socket.on("chat:typing", handleTyping);
-
-    return () => {
-      socket.off("chat:message", handleNewMessage);
-      socket.off("chat:typing", handleTyping);
-    };
-  }, [convId]);
-
-  useEffect(() => {
-    if (messages) setLocalMessages([]);
-  }, [convId]);
-
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: "smooth" });
-  }, [localMessages, messages]);
+  }, [messages]);
 
-  const allMessages = [...(messages || []), ...localMessages.filter(
-    (lm) => !(messages || []).some((m: any) => m.id === lm.id)
-  )];
+  const allMessages = messages || [];
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -191,10 +164,6 @@ function ChatArea({ convId }: { convId: string }) {
     setInviteRoomId("");
     setInviteRoomName("");
   };
-
-  const socket = getSocket();
-  const handleTypingStart = () => socket?.emit("chat:typing", { conversationId: convId, isTyping: true });
-  const handleTypingStop = () => socket?.emit("chat:typing", { conversationId: convId, isTyping: false });
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
@@ -265,9 +234,6 @@ function ChatArea({ convId }: { convId: string }) {
             </div>
           );
         })}
-        {isTyping && (
-          <div className="text-xs text-[var(--text-muted)] italic px-2">Typing...</div>
-        )}
         <div ref={messagesEnd} />
       </div>
 
@@ -277,16 +243,11 @@ function ChatArea({ convId }: { convId: string }) {
             className="input flex-1"
             placeholder="Type a message..."
             value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              handleTypingStart();
-            }}
-            onBlur={handleTypingStop}
+            onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
-                handleTypingStop();
               }
             }}
           />

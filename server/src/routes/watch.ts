@@ -218,7 +218,7 @@ router.patch("/rooms/:id/media", async (req: Request, res: Response) => {
 
     const room = await getById("watchRooms", roomId);
     if (room) {
-      getIO().to(`watch:${roomId}`).emit("watch:mediaChange", {
+      getIO()?.to(`watch:${roomId}`).emit("watch:mediaChange", {
         mediaUrl: room.mediaUrl,
         mediaProvider: room.mediaProvider,
         mediaId: room.mediaId,
@@ -240,7 +240,7 @@ router.delete("/rooms/:id", async (req: Request, res: Response) => {
     if (!resolved) { res.status(404).json({ error: "Room not found" }); return; }
     const { id: roomId } = resolved;
     await updateRow("watchRooms", roomId, { active: false });
-    getIO().to(`watch:${roomId}`).emit("room:closed");
+    getIO()?.to(`watch:${roomId}`).emit("room:closed");
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -256,7 +256,7 @@ router.post("/rooms/:id/leave", async (req: Request, res: Response) => {
     const { id: roomId } = resolved;
     await setAt(`watchRoomMembers/${roomId}_${req.user!.id}`, null);
     getIO()
-      .to(`watch:${roomId}`)
+      ?.to(`watch:${roomId}`)
       .emit("member:left", { userId: req.user!.id });
     res.json({ success: true });
   } catch (err) {
@@ -308,7 +308,7 @@ router.post("/rooms/:id/messages", async (req: Request, res: Response) => {
       createdAt: Date.now(),
     });
     const msg = await getById("watchMessages", msgId);
-    getIO().to(`watch:${roomId}`).emit("chat:message", msg);
+    getIO()?.to(`watch:${roomId}`).emit("chat:message", msg);
     res.status(201).json(msg);
   } catch (err) {
     console.error(err);
