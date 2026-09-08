@@ -13,6 +13,7 @@ import {
   hydrate,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
+import { checkTaskAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -129,6 +130,7 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     const note = await getAt(`notes/${id}`);
+    await checkTaskAchievements(req.user!.id);
     res.status(201).json(hydrate("notes", { id, ...note }));
   } catch (err) {
     console.error(err);

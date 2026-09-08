@@ -92,6 +92,81 @@ router.patch("/:id/read", async (req: Request, res: Response) => {
   }
 });
 
+// ============ SEED ACHIEVEMENTS IN FIREBASE ============
+const ACHIEVEMENT_DEFS = [
+  { code: "first_task", name: "First Steps", description: "Completed your first task", icon: "✅" },
+  { code: "7_streak", name: "On Fire!", description: "7-day productivity streak", icon: "🔥" },
+  { code: "100_tasks", name: "Century", description: "Completed 100 tasks", icon: "💯" },
+  { code: "first_workout", name: "Getting Started", description: "Completed your first workout", icon: "💪" },
+  { code: "10_workouts", name: "Fitness Fanatic", description: "Completed 10 workouts", icon: "🏋️" },
+  { code: "note_master", name: "Note Master", description: "Created 50 notes", icon: "📒" },
+  { code: "30_streak", name: "Unstoppable!", description: "30-day productivity streak", icon: "🌟" },
+  { code: "social_butterfly", name: "Social Butterfly", description: "Added 5 friends", icon: "🦋" },
+  { code: "first_chat", name: "Chatterbox", description: "Sent your first message", icon: "💬" },
+  { code: "watch_party", name: "Party Time!", description: "Joined a watch party", icon: "🎬" },
+  { code: "early_bird", name: "Early Bird", description: "Completed a task before 8am", icon: "🐦" },
+  { code: "night_owl", name: "Night Owl", description: "Completed a task after midnight", icon: "🦉" },
+  { code: "10k_steps", name: "Step Champion", description: "Hit 10,000 steps in a day", icon: "👟" },
+  { code: "10_cardio", name: "Cardio King", description: "Completed 10 cardio sessions", icon: "🏃" },
+];
+
+export async function seedAchievements() {
+  const existing = await findAll("achievements");
+  const existingCodes = new Set(existing.map((a: any) => a.code));
+  for (const ach of ACHIEVEMENT_DEFS) {
+    if (!existingCodes.has(ach.code)) {
+      await setRow("achievements", `ach_${ach.code}`, ach);
+    }
+  }
+}
+
+// ============ STREAK ============
+export async function updateStreak(userId: string) {
+  const user = await getById("users", userId);
+  if (!user) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const lastDate = user.lastActivityDate;
+
+  // Already counted today
+  if (lastDate === today) return;
+
+  let newStreak = user.streak || 0;
+  let longestStreak = user.longestStreak || 0;
+
+  if (lastDate) {
+    const last = new Date(lastDate);
+    const now = new Date(today);
+    const diffDays = Math.floor((now.getTime() - last.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (diffDays === 1) {
+      // Consecutive day — extend streak
+      newStreak += 1;
+    } else if (diffDays > 1) {
+      // Streak broken
+      newStreak = 1;
+    }
+    // diffDays === 0 already handled above
+  } else {
+    // First activity ever
+    newStreak = 1;
+  }
+
+  if (newStreak > longestStreak) {
+    longestStreak = newStreak;
+  }
+
+  await updateRow("users", userId, {
+    streak: newStreak,
+    longestStreak,
+    lastActivityDate: today,
+  });
+
+  // Check streak achievements
+  if (newStreak >= 7) await awardAchievement(userId, "7_streak");
+  if (newStreak >= 30) await awardAchievement(userId, "30_streak");
+}
+
 // ============ GAMIFICATION ============
 export async function awardXp(userId: string, amount: number) {
   const user = await getById("users", userId);
@@ -115,6 +190,7 @@ export async function awardXp(userId: string, amount: number) {
 }
 
 export async function awardAchievement(userId: string, code: string) {
+  await seedAchievements();
   const achievement = await findOne("achievements", "code", code);
   if (!achievement) return;
 
@@ -142,6 +218,7 @@ export async function awardAchievement(userId: string, code: string) {
 // GET /api/notifications/achievements
 router.get("/achievements", async (req: Request, res: Response) => {
   try {
+    await seedAchievements();
     const all = await findAll("achievements");
     const earned = await findMany("userAchievements", "userId", req.user!.id);
 

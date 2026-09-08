@@ -12,7 +12,7 @@ import {
   setAt,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
-import { awardXp } from "./notifications.js";
+import { awardXp, updateStreak } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -332,6 +332,7 @@ router.patch("/homework/:id", async (req: Request, res: Response) => {
     // Award XP for completing homework
     if (updated.status === "completed" && !wasCompleted) {
       await awardXp(req.user!.id, 15);
+      await updateStreak(req.user!.id);
     }
     
     res.json(updated);
@@ -473,6 +474,7 @@ router.patch("/study-sessions/:id", async (req: Request, res: Response) => {
     // Award XP for completing study session
     if (updated.status === "completed" && !wasCompleted) {
       await awardXp(req.user!.id, 10);
+      await updateStreak(req.user!.id);
     }
     
     res.json(updated);

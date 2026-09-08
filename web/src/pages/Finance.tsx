@@ -499,7 +499,7 @@ export default function Finance() {
               <button className="text-xs text-[var(--accent)] hover:underline" onClick={() => { setNewBalance(filteredSummary.balance.toFixed(2)); setIsBalanceModalOpen(true); }}>Adjust</button>
             </div>
             <div className="text-3xl font-bold mt-2">
-              ${filteredSummary.balance.toFixed(2)}
+              NRS {filteredSummary.balance.toFixed(2)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">
               {filteredSummary.balance >= 0 ? "Positive" : "Negative"} balance
@@ -510,7 +510,7 @@ export default function Finance() {
               <TrendingUp size={16} className="text-green-500" /> Income
             </div>
             <div className="text-3xl font-bold mt-2 text-green-500">
-              +${filteredSummary.totalIncome.toFixed(2)}
+              +NRS {filteredSummary.totalIncome.toFixed(2)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">This period</p>
           </div>
@@ -519,7 +519,7 @@ export default function Finance() {
               <TrendingDown size={16} className="text-red-500" /> Expenses
             </div>
             <div className="text-3xl font-bold mt-2 text-red-500">
-              -${filteredSummary.totalExpense.toFixed(2)}
+              -NRS {filteredSummary.totalExpense.toFixed(2)}
             </div>
             <p className="text-xs text-[var(--text-muted)] mt-1">This period</p>
           </div>
@@ -559,7 +559,7 @@ export default function Finance() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, ""]}
+                      formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
                       contentStyle={{
                         backgroundColor: "var(--card-bg)",
                         border: "1px solid var(--border)",
@@ -614,7 +614,7 @@ export default function Finance() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, ""]}
+                      formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
                       contentStyle={{
                         backgroundColor: "var(--card-bg)",
                         border: "1px solid var(--border)",
@@ -657,7 +657,7 @@ export default function Finance() {
                 <XAxis type="number" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" tick={{ fill: "var(--text-muted)", fontSize: 11 }} width={60} />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, ""]}
+                  formatter={(value: number) => [`NRS ${value.toFixed(2)}`, ""]}
                   contentStyle={{
                     backgroundColor: "var(--card-bg)",
                     border: "1px solid var(--border)",

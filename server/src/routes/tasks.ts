@@ -12,6 +12,7 @@ import {
   hydrate,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
+import { updateStreak, checkTaskAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -239,12 +240,16 @@ router.patch("/:id", async (req: Request, res: Response) => {
         const xpGain = 10; // Base XP per task
         const newXp = currentXp + xpGain;
         const newLevel = Math.floor(newXp / 100) + 1;
-        
+
         await updateRow("users", req.user!.id, {
           xp: newXp,
           level: newLevel,
         });
       }
+
+      // Update streak and check achievements
+      await updateStreak(req.user!.id);
+      await checkTaskAchievements(req.user!.id);
     } else if (updates.completed === false && task.completed) {
       updates.completedAt = null;
       updates.status = "pending";
