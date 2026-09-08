@@ -17,6 +17,7 @@ service-account*.txt
 
 # --- Apps / tooling ---
 node_modules/
+*.tsbuildinfo
 dist/
 uploads/
 .DS_Store
