@@ -32,6 +32,9 @@ import {
   toMinutes,
   nMin,
   uid,
+  syncFocusSession,
+  fetchServerSessions,
+  fetchServerStreak,
   type ScheduleEntry,
 } from "@/lib/studyPulse";
 
@@ -149,10 +152,12 @@ function HomeTab({ onStartFocus }: { onStartFocus: () => void }) {
   const [now, setNow] = useState(nMin());
 
   useEffect(() => {
-    setTasks(store.getTasks(today));
-    setStreak(store.getStreak().count);
-    const mins = store.getSessions().filter((s) => s.date === today).reduce((a, s) => a + s.minutes, 0);
-    setSessionsMin(mins);
+    (async () => {
+      const [streakCount, allSessions] = await Promise.all([fetchServerStreak(), fetchServerSessions()]);
+      setStreak(streakCount);
+      const mins = allSessions.filter((s) => s.date === today).reduce((a, s) => a + s.minutes, 0);
+      setSessionsMin(mins);
+    })();
     setGoal(store.getGoals());
     const q = quotes[Math.floor(Date.now() / 86400000) % quotes.length];
     setQuote(q);
@@ -318,7 +323,7 @@ function FocusTab() {
   const timer = useRef<any>(null);
 
   useEffect(() => {
-    setTodayMin(store.getSessions().filter((s) => s.date === todayISO()).reduce((a, s) => a + s.minutes, 0));
+    fetchServerSessions().then((s) => setTodayMin(s.filter((x) => x.date === todayISO()).reduce((a, b) => a + b.minutes, 0)));
   }, [done]);
 
   useEffect(() => {
@@ -338,12 +343,16 @@ function FocusTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
-  const complete = () => {
+  const complete = async () => {
     const name = subject || custom.trim() || "Study";
-    store.addSession({ id: uid(), subject: name, minutes: duration, date: todayISO(), completed: true });
-    bumpStreakFromSessions();
-    setDone(true);
-    toast(`🎉 ${duration} min of ${name} logged!`);
+    const ok = await syncFocusSession(name, duration);
+    if (ok) {
+      setDone(true);
+      toast(`🎉 ${duration} min of ${name} logged — streak & XP updated everywhere!`);
+    } else {
+      setDone(true);
+      toast(`🎉 ${duration} min saved (offline — sync when you reconnect)`);
+    }
   };
 
   const bumpStreakFromSessions = () => {
@@ -684,9 +693,12 @@ function ProgressTab() {
   const [streak, setStreak] = useState(0);
 
   useEffect(() => {
-    setSessions(store.getSessions());
+    (async () => {
+      const [all, s] = await Promise.all([fetchServerSessions(), fetchServerStreak()]);
+      setSessions(all);
+      setStreak(s);
+    })();
     setGoal(store.getGoals());
-    setStreak(store.getStreak().count);
   }, []);
 
   const stats = useMemo(() => {

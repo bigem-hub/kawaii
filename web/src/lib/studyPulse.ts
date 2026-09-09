@@ -1,5 +1,20 @@
-// StudyPulse data layer — localStorage store for kawaii integration.
-// Self-contained (no backend schema changes needed), private per-user browser storage.
+// StudyPulse data layer — localStorage store + cross-device server sync for kawaii.
+// Focus sessions, streak and XP are persisted to kawaii's Firebase backend via the
+// existing /api/schedule/study-sessions + /api/tasks/stats endpoints, so your phone
+// and laptop share one study timeline. localStorage remains as an offline cache.
+import { api } from "./api";
+
+export type ServerSession = {
+  id: string;
+  title: string;
+  topic: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  durationMinutes: number;
+  status: string; // planned | completed
+  subjectId: string | null;
+};
 
 export interface Task {
   id: string;
@@ -175,4 +190,92 @@ export function nMin(): number {
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 11);
+}
+
+// ---------------------------------------------------------------------------
+// Cross-device server sync (kawaii Firebase backend)
+// ---------------------------------------------------------------------------
+
+/** Format a Date as "HH:MM" for the API. */
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Log a completed focus session to the server via the existing
+ * /api/schedule/study-sessions endpoint. Creating it then marking it
+ * "completed" triggers kawaii's server-side XP + streak update, so the
+ * streak advances and is visible on every device.
+ */
+export async function syncFocusSession(subject: string, minutes: number): Promise<boolean> {
+  const today = todayISO();
+  const end = new Date();
+  const start = new Date(end.getTime() - minutes * 60000);
+  try {
+    const created = await api.post<ServerSession>("/schedule/study-sessions", {
+      title: subject,
+      topic: "",
+      date: today,
+      startTime: hhmm(start),
+      endTime: hhmm(end),
+      priority: "high",
+      notes: "StudyPulse focus session",
+      status: "planned",
+    });
+    // Mark completed to award XP and advance the streak server-side.
+    await api.patch(`/schedule/study-sessions/${created.id}`, { status: "completed" });
+    // Cache locally for offline resilience
+    store.addSession({ id: created.id, subject, minutes, date: today, completed: true });
+    return true;
+  } catch (e) {
+    console.error("syncFocusSession failed — keeping local copy", e);
+    store.addSession({ id: uid(), subject, minutes, date: today, completed: true });
+    return false;
+  }
+}
+
+/** Normalize a server study-session into the local StudySession shape. */
+export function toLocalSession(s: ServerSession): StudySession {
+  return {
+    id: s.id,
+    subject: s.title || "Study",
+    minutes: s.durationMinutes || 0,
+    date: s.date,
+    completed: s.status === "completed",
+  };
+}
+
+/**
+ * Load all study focus sessions from the server. Falls back to the local
+ * cache when offline or unauthenticated.
+ */
+export async function fetchServerSessions(): Promise<StudySession[]> {
+  try {
+    const rows = await api.get<ServerSession[]>("/schedule/study-sessions");
+    const sessions = (rows || []).map(toLocalSession);
+    // Merge with any locally-cached sessions not on the server yet
+    const ids = new Set(sessions.map((s) => s.id));
+    for (const local of store.getSessions()) {
+      if (!ids.has(local.id)) sessions.push(local);
+    }
+    try {
+      localStorage.setItem("pulse_sessions", JSON.stringify(sessions));
+    } catch { /* ignore */ }
+    return sessions;
+  } catch {
+    return store.getSessions();
+  }
+}
+
+/** Fetch the user's current streak (uses existing /api/tasks/stats). */
+export async function fetchServerStreak(): Promise<number> {
+  try {
+    const stats = await api.get<{ streak?: number }>("/tasks/stats");
+    if (typeof stats?.streak === "number") return stats.streak;
+    // Fall back to the user record fields if available
+    const me = await api.get<{ streak?: number }>("/auth/me").catch(() => null);
+    return me?.streak ?? 0;
+  } catch {
+    return store.getStreak().count;
+  }
 }
