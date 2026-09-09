@@ -49,6 +49,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: "Study & Finance",
     items: [
       { to: "/study", icon: GraduationCap, label: "Study" },
+      { to: "/study-pulse", icon: Sparkles, label: "StudyPulse" },
       { to: "/finance", icon: Wallet, label: "Finance" },
     ],
   },
@@ -75,6 +76,7 @@ const bottomNav: NavItem[] = [
   { to: "/dashboard", icon: Home, label: "Home" },
   { to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { to: "/study", icon: GraduationCap, label: "Study" },
+      { to: "/study-pulse", icon: Sparkles, label: "StudyPulse" },
   { to: "/finance", icon: Wallet, label: "Finance" },
   { to: "/tasks", icon: CheckSquare, label: "Tasks" },
 ];

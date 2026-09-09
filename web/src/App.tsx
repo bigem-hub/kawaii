@@ -24,6 +24,7 @@ import Profile from "@/pages/Profile";
 import SettingsPage from "@/pages/Settings";
 import Search from "@/pages/Search";
 import Study from "@/pages/Study";
+import StudyPulse from "@/pages/StudyPulse";
 import Finance from "@/pages/Finance";
 import Schedule from "@/pages/Schedule";
 
@@ -96,6 +97,7 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="study" element={<Study />} />
+        <Route path="study-pulse" element={<StudyPulse />} />
         <Route path="tasks" element={<Tasks />} />
         <Route path="notes" element={<Notes />} />
         <Route path="notes/:id" element={<NoteEditor />} />
