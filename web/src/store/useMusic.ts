@@ -50,6 +50,7 @@ interface MusicState extends MusicData {
 }
 
 let player: any = null;
+let playerReadyPromise: Promise<any> | null = null;
 const TICK_MS = 1000;
 
 export const useMusic = create<MusicState>((set, get) => {
@@ -75,10 +76,9 @@ export const useMusic = create<MusicState>((set, get) => {
     set({ queueIndex: idx >= 0 ? idx : get().queueIndex });
 
     try {
-      await ensurePlayer();
+      const p = await ensurePlayer();
       if (track.provider !== "youtube") return; // spotify handled by embed UI
-      player.cueVideoById(track.id);
-      player.playVideo();
+      p.loadVideoById(track.id);
     } finally {
       set({ loading: false });
     }
@@ -211,48 +211,63 @@ export const useMusic = create<MusicState>((set, get) => {
 
 async function ensurePlayer(): Promise<any> {
   if (player) return player;
-  await loadYoutubeApi();
-  const host = document.getElementById("kawaii-music-player");
-  if (!host) throw new Error("Music player host not mounted");
-  player = new window.YT.Player(host, {
-    width: "100%",
-    height: "100%",
-    playerVars: { playsinline: 1, rel: 0 },
-    events: {
-      onReady: () => {
-        const vol = useMusic.getState().volume ?? 70;
-        player.setVolume(vol);
-      },
-      onStateChange: (e: any) => {
-        const st = YT_STATES[e.data];
-        const s = useMusic.getState();
-        if (st === "playing") {
-          useMusic.setState({ isPlaying: true });
-          try {
-            const d = player.getDuration();
-            if (d && isFinite(d)) useMusic.setState({ duration: d });
-          } catch {}
-        } else if (st === "paused") {
-          useMusic.setState({ isPlaying: false });
-        } else if (st === "ended") {
-          // capture video metadata into `current`
-          const cur = useMusic.getState().current;
-          if (cur?.provider === "youtube") {
-            try {
-              const vd = player.getVideoData();
-              if (vd?.title && cur.title !== vd.title) {
-                useMusic.setState({ current: { ...cur, title: vd.title, artist: vd.author || cur.artist } });
+  if (playerReadyPromise) return playerReadyPromise;
+
+  playerReadyPromise = new Promise(async (resolve, reject) => {
+    try {
+      await loadYoutubeApi();
+      const host = document.getElementById("kawaii-music-player");
+      if (!host) throw new Error("Music player host not mounted");
+      player = new window.YT.Player(host, {
+        width: "100%",
+        height: "100%",
+        playerVars: { playsinline: 1, rel: 0, autoplay: 1 },
+        events: {
+          onReady: () => {
+            const vol = useMusic.getState().volume ?? 70;
+            player.setVolume(vol);
+            resolve(player);
+          },
+          onStateChange: (e: any) => {
+            const st = YT_STATES[e.data];
+            const s = useMusic.getState();
+            if (st === "playing") {
+              useMusic.setState({ isPlaying: true });
+              try {
+                const d = player.getDuration();
+                if (d && isFinite(d)) useMusic.setState({ duration: d });
+              } catch {}
+            } else if (st === "paused") {
+              useMusic.setState({ isPlaying: false });
+            } else if (st === "ended") {
+              const cur = useMusic.getState().current;
+              if (cur?.provider === "youtube") {
+                try {
+                  const vd = player.getVideoData();
+                  if (vd?.title && cur.title !== vd.title) {
+                    useMusic.setState({ current: { ...cur, title: vd.title, artist: vd.author || cur.artist } });
+                  }
+                } catch {}
               }
-            } catch {}
-          }
-          useMusic.setState({ isPlaying: false });
-          s.next();
-        } else if (st === "unstarted") {
-          useMusic.setState({ isPlaying: false });
-        }
-      },
-    },
+              useMusic.setState({ isPlaying: false });
+              s.next();
+            } else if (st === "unstarted") {
+              useMusic.setState({ isPlaying: false });
+            }
+          },
+          onError: (e: any) => {
+            console.error("YouTube Player Error:", e.data);
+            useMusic.setState({ isPlaying: false, loading: false });
+          },
+        },
+      });
+    } catch (err) {
+      playerReadyPromise = null;
+      reject(err);
+    }
   });
+
+  const p = await playerReadyPromise;
   // Poll position when playing
   setInterval(() => {
     const st = useMusic.getState();
@@ -261,7 +276,7 @@ async function ensurePlayer(): Promise<any> {
       useMusic.setState({ position: player.getCurrentTime() });
     } catch {}
   }, TICK_MS);
-  return player;
+  return p;
 }
 
 function bestEffortTrack(t: Track): Track {

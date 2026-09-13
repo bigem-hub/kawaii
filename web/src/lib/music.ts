@@ -26,6 +26,7 @@ export interface Track {
   thumbnail: string; // album-art / embed thumbnail URL
   url: string; // canonical provider URL
   duration?: number; // seconds (youtube, known after load)
+  spotifyType?: "track" | "playlist" | "album";
 }
 
 export interface Playlist {
@@ -100,9 +101,59 @@ export function parseYoutubeUrl(input: string): string | null {
 }
 
 export function parseSpotifyUrl(input: string): { type: "track" | "album" | "playlist"; id: string } | null {
-  const m = input.trim().match(/open\.spotify\.com\/(track|album|playlist)\/([A-Za-z0-9]+)/);
-  if (!m) return null;
-  return { type: m[1] as any, id: m[2] };
+  const trimmed = input.trim();
+  const uriMatch = trimmed.match(/^spotify:(track|album|playlist):([A-Za-z0-9]+)/);
+  if (uriMatch) return { type: uriMatch[1] as any, id: uriMatch[2] };
+
+  const urlMatch = trimmed.match(/open\.spotify\.com\/(?:intl-[a-z]{2}\/)?(?:embed\/)?(track|album|playlist)\/([A-Za-z0-9]+)/);
+  if (urlMatch) return { type: urlMatch[1] as any, id: urlMatch[2] };
+
+  return null;
+}
+
+export const CURATED_SPOTIFY_PLAYLISTS: { name: string; id: string; type: "playlist"; color: string; blurb: string }[] = [
+  {
+    name: "Lofi Beats",
+    id: "37i9dQZF1DXdLEN7aqioXM",
+    type: "playlist",
+    color: "#1db954",
+    blurb: "Beats to study & relax",
+  },
+  {
+    name: "Deep Focus",
+    id: "37i9dQZF1DWZeKCadgRdKQ",
+    type: "playlist",
+    color: "#805ad5",
+    blurb: "Peaceful ambient study music",
+  },
+  {
+    name: "Peaceful Piano",
+    id: "37i9dQZF1DX4sWSpwq3LiO",
+    type: "playlist",
+    color: "#319795",
+    blurb: "Calm piano focus",
+  },
+  {
+    name: "Chill Lofi Study",
+    id: "37i9dQZF1DX8Ueb9qanV2r",
+    type: "playlist",
+    color: "#dd6b20",
+    blurb: "Cozy beats for working",
+  },
+];
+
+export function spotifyPlaylistToTrack(
+  p: (typeof CURATED_SPOTIFY_PLAYLISTS)[number]
+): Track {
+  return {
+    id: p.id,
+    provider: "spotify",
+    title: p.name,
+    artist: "Spotify",
+    thumbnail: "https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico",
+    url: `https://open.spotify.com/playlist/${p.id}`,
+    spotifyType: p.type,
+  };
 }
 
 /** Resolve a pasted YouTube link to a track via YouTube oEmbed (no API key). */
@@ -169,8 +220,14 @@ export async function searchYoutube(query: string): Promise<Track[]> {
     });
 }
 
-export function spotifyEmbedUrl(track: Track, theme: "0" | "1" = "0"): string {
-  return `https://open.spotify.com/embed/track/${track.id}?utm_source=generator&theme=${theme}&autoplay=1`;
+export function spotifyEmbedUrl(track: Track | null, theme: "0" | "1" = "0"): string {
+  if (!track) {
+    return `https://open.spotify.com/embed/playlist/37i9dQZF1DXdLEN7aqioXM?utm_source=generator&theme=${theme}&autoplay=1`;
+  }
+  const type = track.spotifyType || "track";
+  const id = track.provider === "spotify" ? track.id : "37i9dQZF1DXdLEN7aqioXM";
+  const resolvedType = track.provider === "spotify" ? type : "playlist";
+  return `https://open.spotify.com/embed/${resolvedType}/${id}?utm_source=generator&theme=${theme}&autoplay=1`;
 }
 
 export function formatTime(sec: number): string {

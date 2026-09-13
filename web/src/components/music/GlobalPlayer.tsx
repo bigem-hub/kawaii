@@ -34,8 +34,12 @@ export function GlobalPlayer() {
 
   return (
     <>
-      {/* Hidden YT player host (kept mounted for the app's lifetime). */}
-      <div id="kawaii-music-player" aria-hidden className="hidden" />
+      {/* Hidden YT player host (kept mounted & visible to the browser engine, but positioned offscreen so audio plays) */}
+      <div
+        id="kawaii-music-player"
+        aria-hidden="true"
+        className="fixed -top-[9999px] -left-[9999px] w-[300px] h-[200px] pointer-events-none opacity-0 z-[-1]"
+      />
 
       <MiniPlayer />
     </>

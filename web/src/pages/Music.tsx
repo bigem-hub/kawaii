@@ -20,7 +20,9 @@ import { toast, Tag } from "@/components/ui";
 import { useMusic } from "@/store/useMusic";
 import {
   CURATED_RADIOS,
+  CURATED_SPOTIFY_PLAYLISTS,
   curatedQueue,
+  spotifyPlaylistToTrack,
   canSearch,
   searchYoutube,
   parseYoutubeUrl,
@@ -107,14 +109,21 @@ export default function Music() {
       return;
     }
     const sp = parseSpotifyUrl(l);
-    if (sp && sp.type === "track") {
+    if (sp) {
+      let title = "Spotify";
+      let thumbnail = "https://open.spotifycdn.com/cdn/images/favicon.0f31d2ea.ico";
+      let url = `https://open.spotify.com/${sp.type}/${sp.id}`;
+      if (sp.type === "playlist" || sp.type === "album") {
+        title = `${sp.type.charAt(0).toUpperCase() + sp.type.slice(1)} (${sp.id})`;
+      }
       const track: Track = {
         id: sp.id,
         provider: "spotify",
-        title: l,
+        title,
         artist: "Spotify",
-        thumbnail: "https://i.scdn.co/image/ab67616d0000b273000000000000000000000000",
-        url: l,
+        thumbnail,
+        url,
+        spotifyType: sp.type,
       };
       setProvider("spotify");
       await play(track);
@@ -213,45 +222,86 @@ export default function Music() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left / main column: curated + search results + queue */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Curated radios */}
-          <Section title="Start with a curated station" icon={<Sparkles size={16} />}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {CURATED_RADIOS.map((r) => {
-                const track = radioToTrack(r);
-                const active = current?.id === r.videoId && provider === "youtube";
-                return (
-                  <button
-                    key={r.videoId}
-                    onClick={() => playQueue(curatedQueue(), CURATED_RADIOS.indexOf(r))}
-                    className="card p-4 text-left group hover:-translate-y-1 transition-transform"
-                  >
-                    <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-[var(--surface-2)]">
-                      <img
-                        src={track.thumbnail}
-                        alt={r.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                      <span className="absolute inset-0 grid place-items-center">
-                        <span
-                          className="w-11 h-11 rounded-full grid place-items-center text-white"
-                          style={{ background: "linear-gradient(135deg, var(--accent), #f973b6)" }}
-                        >
-                          {active && isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+          {/* Curated radios / playlists */}
+          <Section
+            title={provider === "spotify" ? "Curated Spotify Study Playlists" : "Start with a curated station"}
+            icon={<Sparkles size={16} />}
+          >
+            {provider === "spotify" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {CURATED_SPOTIFY_PLAYLISTS.map((p) => {
+                  const track = spotifyPlaylistToTrack(p);
+                  const active = current?.id === p.id && provider === "spotify";
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setProvider("spotify");
+                        play(track);
+                      }}
+                      className="card p-4 text-left group hover:-translate-y-1 transition-transform flex items-center gap-4"
+                    >
+                      <div
+                        className="w-14 h-14 rounded-2xl flex-shrink-0 grid place-items-center text-white font-black text-xl shadow-soft"
+                        style={{ background: `linear-gradient(135deg, ${p.color}, var(--accent))` }}
+                      >
+                        <Music2 size={24} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm truncate flex items-center gap-1.5">
+                          {p.name}
+                          {active && (
+                            <span className="badge !text-[10px] !py-0.5" style={{ background: "var(--accent)", color: "#fff" }}>
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[12px] text-[var(--text-muted)] truncate">{p.blurb}</div>
+                        <div className="text-[10px] text-[var(--accent)] font-medium mt-1">Open in Spotify Embed →</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {CURATED_RADIOS.map((r) => {
+                  const track = radioToTrack(r);
+                  const active = current?.id === r.videoId && provider === "youtube";
+                  return (
+                    <button
+                      key={r.videoId}
+                      onClick={() => playQueue(curatedQueue(), CURATED_RADIOS.indexOf(r))}
+                      className="card p-4 text-left group hover:-translate-y-1 transition-transform"
+                    >
+                      <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-[var(--surface-2)]">
+                        <img
+                          src={track.thumbnail}
+                          alt={r.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                        />
+                        <span className="absolute inset-0 grid place-items-center">
+                          <span
+                            className="w-11 h-11 rounded-full grid place-items-center text-white"
+                            style={{ background: "linear-gradient(135deg, var(--accent), #f973b6)" }}
+                          >
+                            {active && isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+                          </span>
                         </span>
-                      </span>
-                      {active && (
-                        <span className="absolute top-2 left-2 badge" style={{ background: "var(--accent)", color: "#fff" }}>
-                          Now
-                        </span>
-                      )}
-                    </div>
-                    <div className="font-bold text-sm truncate">{r.name}</div>
-                    <div className="text-[11px] text-[var(--text-muted)] truncate">{r.blurb}</div>
-                  </button>
-                );
-              })}
-            </div>
+                        {active && (
+                          <span className="absolute top-2 left-2 badge" style={{ background: "var(--accent)", color: "#fff" }}>
+                            Now
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-bold text-sm truncate">{r.name}</div>
+                      <div className="text-[11px] text-[var(--text-muted)] truncate">{r.blurb}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </Section>
 
           {/* Search results */}
