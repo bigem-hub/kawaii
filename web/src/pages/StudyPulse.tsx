@@ -100,8 +100,8 @@ export default function StudyPulse() {
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+      {/* Tab bar — sticky so it stays reachable while scrolling (mobile/Android) */}
+      <div className="sticky z-30 top-14 lg:top-12 bg-[var(--bg)]/95 backdrop-blur-sm rounded-2xl flex gap-1.5 overflow-x-auto overflow-y-hidden pb-1 mb-1 -mx-1 px-1 pt-1.5 shadow-[0_8px_16px_-12px_rgba(0,0,0,0.35)]">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
