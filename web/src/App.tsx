@@ -27,6 +27,7 @@ import Study from "@/pages/Study";
 import StudyPulse from "@/pages/StudyPulse";
 import Finance from "@/pages/Finance";
 import Schedule from "@/pages/Schedule";
+import Music from "@/pages/Music";
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, initialized } = useAuth();
@@ -115,6 +116,7 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="search" element={<Search />} />
+        <Route path="music" element={<Music />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

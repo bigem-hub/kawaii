@@ -876,7 +876,7 @@ export function VirtualStudyRoom() {
                 <ParticipantVideo participant={person} />
               </div>
             ))}
-            {participants.length < 4 && (
+            {participants.length === 0 && (
               <div className="relative aspect-video rounded-2xl border-2 border-dashed border-[var(--border)] bg-white/50 dark:bg-black/5 flex items-center justify-center">
                 <div className="text-center text-[var(--text-muted)]">
                   <Users size={32} className="mx-auto mb-2 opacity-50" />

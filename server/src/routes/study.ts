@@ -5,6 +5,7 @@ import {
   getAt,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
+import { checkStudyAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -14,12 +15,14 @@ router.post("/create-room", async (req: Request, res: Response) => {
   try {
     const roomId = uuid().slice(0, 8).toUpperCase();
     const now = Date.now();
-    
+
     await setRow("studyRooms", roomId, {
       hostId: req.user!.id,
       createdAt: now,
       isActive: true,
     });
+
+    await checkStudyAchievements(req.user!.id);
 
     res.json({ roomId });
   } catch (err) {

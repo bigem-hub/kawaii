@@ -1,0 +1,88 @@
+# ─── Docker Compose — KawaiiLife full stack ─────────────────────────────────
+# Frontend (Nginx + React/Vite) and Backend (Node/Express + Socket.IO).
+# The database is Firebase Realtime Database (external managed service) —
+# no dedicated DB container is needed.
+#
+# Usage:
+#   docker compose up -d --build
+#
+# Environment comes from the root `.env` file (see `.env.example`).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: kawaii
+
+services:
+  # ─── Backend / API ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: kawaii-backend
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (see .env.example)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL:?set FIREBASE_DATABASE_URL in .env}
+      # Raw JSON string of the Firebase service account (never commit it)
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT}
+      UPLOAD_DIR: /app/server/uploads
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+    volumes:
+      # Persistent file uploads
+      - uploads_data:/app/server/uploads
+    networks:
+      - kawaii-net
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3001/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Frontend (Nginx + React) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Runtime API/WS addresses are same-origin through the Nginx proxy
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-/}
+        # Public (client-safe) Firebase config for Study Room RTDB signaling.
+        # Optional: if unset, the Study Room realtime degrades gracefully.
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_DATABASE_URL: ${VITE_FIREBASE_DATABASE_URL:-}
+    container_name: kawaii-frontend
+    ports:
+      - "${WEB_PORT:-80}:80"
+    networks:
+      - kawaii-net
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  uploads_data:
+
+networks:
+  kawaii-net:
+    driver: bridge

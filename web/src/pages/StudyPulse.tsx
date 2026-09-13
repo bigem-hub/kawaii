@@ -385,15 +385,15 @@ function FocusTab() {
         </div>
       )}
 
-      <div className="card p-8 text-center">
-        <div className="relative w-52 h-52 mx-auto mb-6">
+      <div className="card p-4 sm:p-8 text-center">
+        <div className="relative w-44 h-44 min-[400px]:w-52 min-[400px]:h-52 mx-auto mb-6">
           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
             <circle cx="50" cy="50" r="42" stroke="var(--surface-2)" strokeWidth="8" fill="transparent" />
             <circle cx="50" cy="50" r="42" stroke="var(--accent)" strokeWidth="8" fill="transparent" strokeLinecap="round"
               strokeDasharray={`${(pct / 100) * 264} 264`} className="transition-all duration-500" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-5xl font-bold tabular-nums text-[var(--text)]">{m}:{s}</p>
+            <p className="text-4xl min-[400px]:text-5xl font-bold tabular-nums text-[var(--text)]">{m}:{s}</p>
             <p className="text-xs text-[var(--text-muted)] mt-2">{running ? "Focusing..." : "Ready"}</p>
           </div>
         </div>
@@ -408,7 +408,7 @@ function FocusTab() {
           ))}
           <input value={custom} onChange={(e) => { setCustom(e.target.value); setSubject(""); }}
             placeholder="Custom..."
-            className="px-3 py-1 rounded-full text-xs bg-[var(--surface-2)] text-[var(--text)] placeholder-[var(--text-muted)] w-28 outline-none focus:ring-2 ring-[var(--accent-soft)]" />
+            className="px-3 py-1 rounded-full text-xs bg-[var(--surface-2)] text-[var(--text)] placeholder-[var(--text-muted)] w-24 min-[400px]:w-28 min-w-0 outline-none focus:ring-2 ring-[var(--accent-soft)]" />
         </div>
 
         {/* Durations */}
@@ -791,8 +791,8 @@ function ProgressTab() {
 /* ----------------------------- Reusable Modal ----------------------------- */
 function Modal({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start sm:items-center justify-center overflow-y-auto p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card p-6 w-full max-w-md max-h-[90vh] overflow-y-auto my-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-bold text-lg mb-4 text-[var(--text)]">{title}</h3>
         {children}
       </motion.div>

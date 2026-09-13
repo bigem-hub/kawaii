@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://kawaiilife.vercel.app/sitemap.xml

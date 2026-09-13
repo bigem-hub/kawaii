@@ -23,11 +23,13 @@ import {
   Wallet,
   CalendarDays,
   MoreHorizontal,
+  Headphones,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { GlobalPlayer } from "@/components/music/GlobalPlayer";
 
 interface NavItem {
   to: string;
@@ -54,11 +56,17 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: "Media",
+    items: [
+      { to: "/music", icon: Headphones, label: "Music" },
+      { to: "/watch", icon: Tv, label: "Watch" },
+    ],
+  },
+  {
     title: "Social",
     items: [
       { to: "/chat", icon: MessageCircle, label: "Chat" },
       { to: "/friends", icon: Users, label: "Friends" },
-      { to: "/watch", icon: Tv, label: "Watch" },
     ],
   },
   {
@@ -76,8 +84,8 @@ const bottomNav: NavItem[] = [
   { to: "/dashboard", icon: Home, label: "Home" },
   { to: "/schedule", icon: CalendarDays, label: "Schedule" },
   { to: "/study", icon: GraduationCap, label: "Study" },
-      { to: "/study-pulse", icon: Sparkles, label: "StudyPulse" },
-  { to: "/finance", icon: Wallet, label: "Finance" },
+      { to: "/music", icon: Headphones, label: "Music" },
+  { to: "/study-pulse", icon: Sparkles, label: "StudyPulse" },
   { to: "/tasks", icon: CheckSquare, label: "Tasks" },
 ];
 
@@ -373,6 +381,9 @@ export function AppLayout() {
           </button>
         </div>
       </nav>
+
+      {/* Global music player: hidden YT host + floating now-playing pill */}
+      <GlobalPlayer />
     </div>
   );
 }

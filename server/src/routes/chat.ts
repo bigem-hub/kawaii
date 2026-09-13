@@ -13,6 +13,7 @@ import {
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
 import { getIO } from "../realtime/index.js";
+import { checkChatAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -309,6 +310,9 @@ router.post("/:convId/messages", async (req: Request, res: Response) => {
         ?.to(`user:${m.userId}`)
         .emit("chat:message", { conversationId: convId, message: payload });
     });
+
+    // Award chat achievements (first_chat / chat_50) — deduped server-side.
+    await checkChatAchievements(userId);
 
     res.status(201).json(payload);
   } catch (err) {

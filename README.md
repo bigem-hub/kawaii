@@ -52,6 +52,118 @@ cd server && npm run dev
 cd web && npm run dev
 ```
 
+## 🐳 Docker Setup
+
+Containerize the whole app (frontend + backend) with Docker Compose. The
+database stays Firebase Realtime Database — no extra DB container.
+
+### Requirements
+
+- Docker (Desktop on Windows/Mac)
+- Docker Compose (bundled with Docker Desktop)
+
+### Configuration
+
+```bash
+cp .env.example .env
+#   → set JWT_SECRET, FIREBASE_DATABASE_URL, and FIREBASE_SERVICE_ACCOUNT
+#   → optional: VITE_FIREBASE_* for Study Room RTDB signaling
+```
+
+The backend **will not start** without `FIREBASE_SERVICE_ACCOUNT` — paste the
+raw JSON of your service-account file into `.env` (single line).
+
+### Start
+
+```bash
+docker compose up -d --build
+```
+
+- Frontend: <http://localhost> (or `http://localhost:8080` if port 80 is taken
+  — set `WEB_PORT=8080` in `.env`)
+- Backend API: `http://localhost:3001/api/health` (set `BACKEND_PORT=` to change)
+
+### View logs
+
+```bash
+docker compose logs -f
+# per service:
+docker compose logs backend
+docker compose logs frontend
+```
+
+### Stop
+
+```bash
+docker compose down
+```
+
+Add `-v` to also delete the uploads volume (`docker compose down -v`).
+
+### Rebuild
+
+```bash
+docker compose up -d --build
+```
+
+### Check containers
+
+```bash
+docker compose ps
+```
+
+### Architecture
+
+```
+Browser
+   │  http://localhost (docker: kawaii-frontend, port 80)
+   ▼
+Nginx (web/Dockerfile → nginx.conf)
+   ├── /           → React app (Vite-built static bundle)
+   ├── /api/*      → backend (proxied)
+   └── /socket.io/ → backend (proxied, WebSocket upgrade)
+                        │  (docker network kawaii-net)
+                        ▼
+                     Node/Express (server/Dockerfile, port 3001)
+                        │
+                        ▼
+                     Firebase RTDB (external, via Admin SDK)
+```
+
+- Services talk over the private `kawaii-net` bridge network using Compose
+  service names (`backend`), never hard-coded IPs or localhost.
+- Both images are multi-stage: full workspace install + compile in a builder
+  stage, then slim runtime (non-root user, Alpine based).
+- File uploads persist in the named `uploads_data` volume
+  (`/app/server/uploads` in the container).
+
+### Environment variables
+
+| Var | Used by | Required |
+|-----|---------|----------|
+| `JWT_SECRET` | backend | ✅ |
+| `FIREBASE_DATABASE_URL` | backend | ✅ |
+| `FIREBASE_SERVICE_ACCOUNT` | backend | ✅ |
+| `JWT_EXPIRES_IN`, `MAX_FILE_SIZE`, `UPLOAD_DIR` | backend | optional |
+| `VITE_API_URL`, `VITE_WS_URL` | frontend build | optional (defaults are correct for Docker) |
+| `VITE_FIREBASE_API_KEY` / `AUTH_DOMAIN` / `PROJECT_ID` / `DATABASE_URL` | frontend build (Study Room realtime) | optional |
+| `WEB_PORT`, `BACKEND_PORT` | compose port mapping | optional |
+
+Vite `VITE_*` variables are baked in at image build time — after changing them
+you must rebuild the frontend image (`docker compose build frontend`).
+
+### Troubleshooting
+
+- **Backend exits at startup**: `FIREBASE_SERVICE_ACCOUNT` is missing or not
+  valid JSON → check `docker compose logs backend`.
+- **Port 80 in use**: set `WEB_PORT=8080` in `.env`, then `docker compose up -d`.
+- **Frontend shows old API URL**: `VITE_WS_URL`/`VITE_API_URL` are build-time —
+  rebuild: `docker compose build frontend && docker compose up -d`.
+- **Backend healthy but frontend not starting**: frontend waits for the
+  backend health check (`/api/health`); watch `docker compose ps` until the
+  `backend` health column is healthy.
+- **Logs are noisy**: `docker compose logs --tail=100 backend`.
+
 ## 🧪 Regression Testing
 
 ```bash

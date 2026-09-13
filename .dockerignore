@@ -1,0 +1,51 @@
+# ─── .dockerignore (root — used by all Docker builds, contexts are the repo root) ──
+# Exclude build artifacts, secrets, dependencies, and generated files from
+# Docker build contexts. `.env.example` stays allowed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies & build output
+**/node_modules
+**/dist
+**/build
+**/android
+*.tsbuildinfo
+*.apk
+websiteandroidappsrcmainres*
+
+# Version control
+**/.git
+**/.gitignore
+
+# Secrets (never copied into images)
+.env
+.env.*
+!.env.example
+service-account*.json
+*.firebase-sa.json
+
+# Database files
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite*
+
+# Uploads & user content
+**/uploads
+
+# Logs, OS & editor files
+*.log
+.DS_Store
+Thumbs.db
+.idea
+**.idea
+.vscode
+**.vscode
+.claude
+**.claude
+
+# Deployment metadata (not needed in images)
+.vercel
+**/.vercel
+firebase.json
+vercel.json
+**/vercel.json

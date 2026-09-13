@@ -5,8 +5,25 @@ import { useAuth } from "@/store/useAuth";
 import { Avatar, StatCard, ProgressBar, Skeleton } from "@/components/ui";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import { Edit3, Trophy, Flame, Medal, Camera } from "lucide-react";
+import { Edit3, Trophy, Flame, Medal, Camera, Zap, Target, BookOpen, Heart, Star, Trophy as TrophyIcon, Award } from "lucide-react";
 import { format } from "date-fns";
+
+function AchievementIcon({ code }: { code: string }) {
+  const map: Record<string, any> = {
+    first_task: Zap, "25_tasks": Zap, "50_tasks": Zap, "100_tasks": Zap,
+    note_10: BookOpen, note_master: BookOpen,
+    "7_streak": Flame, "14_streak": Flame, "30_streak": Flame,
+    first_workout: Heart, "10_workouts": Heart, "50_workouts": Heart,
+    first_friend: Star, social_butterfly: Heart,
+    first_chat: BookOpen, chat_50: BookOpen,
+    watch_party: Trophy, watch_host: Trophy,
+    hw_10: BookOpen, study_buddy: Award,
+    early_bird: Star, night_owl: Star,
+    default: TrophyIcon,
+  };
+  const Icon = map[code] || map.default;
+  return <Icon size={28} className="text-amber-500" />;
+}
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -132,7 +149,7 @@ export default function Profile() {
           <div className="grid grid-cols-3 gap-3">
             {(achievements as any[]).map((a: any) => (
                 <div key={a.id || a.code} className={`text-center p-3 rounded-xl bg-[var(--surface-2)] ${a.earned ? "" : "opacity-45 grayscale"}`}>
-                <div className="text-2xl mb-1">{a.icon || "🏅"}</div>
+                <div className="mb-1"><AchievementIcon code={a.code} /></div>
                 <div className="text-xs font-semibold">{a.name}</div>
                 <div className="text-[10px] text-[var(--text-muted)]">{a.description}</div>
                   {a.progress && <div className="text-[10px] mt-1">{Math.min(a.progress.current, a.progress.target)}/{a.progress.target}</div>}

@@ -12,6 +12,7 @@ import {
   hydrate,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
+import { checkFriendAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -226,6 +227,10 @@ router.post("/accept/:requestId", async (req: Request, res: Response) => {
       `${request.fromUserId}/${request.toUserId}`,
       { createdAt: Date.now() }
     );
+
+    // Award friend achievements (first_friend / social_butterfly) for both users.
+    await checkFriendAchievements(request.toUserId);
+    await checkFriendAchievements(request.fromUserId);
 
     res.json({ success: true });
   } catch (err) {

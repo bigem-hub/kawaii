@@ -11,6 +11,7 @@ import {
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
 import { getIO } from "../realtime/index.js";
+import { checkWatchAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -110,6 +111,7 @@ router.post("/rooms", async (req: Request, res: Response) => {
     );
 
     const room = await getById("watchRooms", id);
+    await checkWatchAchievements(req.user!.id);
     res.status(201).json({ ...room, code });
   } catch (err) {
     console.error(err);
@@ -138,6 +140,7 @@ router.post("/join", async (req: Request, res: Response) => {
       );
     }
 
+    await checkWatchAchievements(req.user!.id);
     res.json(room);
   } catch (err) {
     console.error(err);
@@ -287,6 +290,7 @@ router.post("/rooms/:id/join", async (req: Request, res: Response) => {
       role: "member",
       joinedAt: Date.now(),
     });
+    await checkWatchAchievements(req.user!.id);
     res.json(resolved.room);
   } catch (err) {
     console.error(err);

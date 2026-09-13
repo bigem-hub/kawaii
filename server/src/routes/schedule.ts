@@ -12,7 +12,7 @@ import {
   setAt,
 } from "../db/firebaseClient.js";
 import { authMiddleware } from "../auth/middleware.js";
-import { awardXp, updateStreak } from "./notifications.js";
+import { awardXp, updateStreak, checkHomeworkAchievements } from "./notifications.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -333,6 +333,7 @@ router.patch("/homework/:id", async (req: Request, res: Response) => {
     if (updated.status === "completed" && !wasCompleted) {
       await awardXp(req.user!.id, 15);
       await updateStreak(req.user!.id);
+      await checkHomeworkAchievements(req.user!.id);
     }
     
     res.json(updated);

@@ -17,6 +17,7 @@ import notificationsRouter from "./routes/notifications.js";
 import financeRouter from "./routes/finance.js";
 import studyRouter from "./routes/study.js";
 import scheduleRouter from "./routes/schedule.js";
+import musicRouter from "./routes/music.js";
 import miscRouter from "./routes/misc.js";
 
 /**
@@ -72,6 +73,7 @@ export function createApp() {
   app.use("/api/finance", financeRouter);
   app.use("/api/study", studyRouter);
   app.use("/api/schedule", scheduleRouter);
+  app.use("/api/music", musicRouter);
 
   // Health check
   app.get("/api/health", (_req, res) => {

@@ -1,0 +1,17 @@
+# ─── server/.dockerignore ────────────────────────────────────────────────────
+# NOTE: Compose builds with `context: .` (repo root), so the root
+# `.dockerignore` is the one that matters for Docker builds. This file is a
+# safety net for manual `docker build -f server/Dockerfile <server-or-root>`.
+# ─────────────────────────────────────────────────────────────────────────────
+
+node_modules
+dist
+.git
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+uploads
+*.log
+service-account*.json

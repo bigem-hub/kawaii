@@ -1,2 +1,5 @@
 .vercel
 .env*
+
+# --- Capacitor / Android (generated platform, built locally) ---
+android/
